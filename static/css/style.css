@@ -1,0 +1,92 @@
+/* Custom CSS for Mural Application */
+
+/* Canvas container styles */
+.canvas-container {
+    position: relative;
+    background: #f0f0f0;
+    border: 2px solid #e0e0e0;
+}
+
+/* Scrollbar styling */
+.canvas-container::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.canvas-container::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+.canvas-container::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 6px;
+}
+
+.canvas-container::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* Activity feed styling */
+#activity-feed::-webkit-scrollbar {
+    width: 6px;
+}
+
+#activity-feed::-webkit-scrollbar-track {
+    background: #374151;
+}
+
+#activity-feed::-webkit-scrollbar-thumb {
+    background: #6b7280;
+    border-radius: 3px;
+}
+
+/* Color picker hover effects */
+.color-picker {
+    transition: all 0.2s ease-in-out;
+}
+
+.color-picker:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Button hover effects */
+button {
+    transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+    transform: translateY(-1px);
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .canvas-container {
+        max-height: 50vh;
+    }
+}
+
+@media (max-width: 768px) {
+    #color-palette {
+        grid-template-columns: repeat(8, 1fr);
+    }
+    
+    .color-picker {
+        width: 1.5rem;
+        height: 1.5rem;
+    }
+}
