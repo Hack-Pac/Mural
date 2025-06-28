@@ -9,8 +9,8 @@ class Config:
     SOCKETIO_ASYNC_MODE = 'threading'
     
     # Canvas configuration
-    CANVAS_WIDTH = 1000
-    CANVAS_HEIGHT = 1000
+    CANVAS_WIDTH = 500
+    CANVAS_HEIGHT = 500
     
     # Cooldown configuration (in seconds)
     PIXEL_COOLDOWN = int(os.environ.get('PIXEL_COOLDOWN', 300))  # 5 minutes default

@@ -6,7 +6,7 @@ A recreation of Reddit's r/Place, allowing users to collaboratively create pixel
 
 - **Real-time collaboration**: Multiple users can place pixels simultaneously
 - **Live updates**: See other users' pixels appear instantly via WebSocket connections
-- **Interactive canvas**: Zoom, pan, and navigate the 1000x1000 pixel canvas
+- **Interactive canvas**: Zoom, pan, and navigate the 500x500 pixel canvas
 - **Color palette**: 32 predefined colors to choose from
 - **Cooldown system**: Configurable pixel placement cooldown (default: 5 minutes in production, 1 minute in development)
 - **Activity feed**: Track recent pixel placements and system events
@@ -71,9 +71,10 @@ A recreation of Reddit's r/Place, allowing users to collaboratively create pixel
 
 1. **Select a color** from the palette on the right sidebar
 2. **Click on the canvas** to place a pixel at that location
-3. **Use zoom controls** to zoom in/out of the canvas
-4. **Pan the canvas** by holding Ctrl and dragging, or using the middle mouse button
-5. **Watch the activity feed** to see real-time updates from other users
+3. **Drag on the canvas** to pan around and explore different areas
+4. **Use zoom controls** to zoom in/out of the canvas, or use the scroll wheel
+5. **Use Ctrl+drag or middle mouse** for alternative panning methods
+6. **Watch the activity feed** to see real-time updates from other users
 
 ## Project Structure
 
@@ -125,7 +126,7 @@ You can easily adjust the pixel placement cooldown:
 
 ### Canvas Settings
 
-- Canvas size: 1000x1000 pixels
+- Canvas size: 500x500 pixels
 - Color palette: 32 predefined colors
 - Real-time updates via WebSocket
 - Session-based user identification

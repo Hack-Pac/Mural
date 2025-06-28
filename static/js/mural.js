@@ -1,4 +1,154 @@
-// Mural - Collaborative Pixel Art Application
+// Optimized utilities inspired by the provided implementation
+const MuralUtils = {
+    // Enhanced fetch wrapper with better error handling
+    ajax: {
+        request: function(url, options = {}, showError = true) {
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                ...options
+            };
+
+            return fetch(url, defaultOptions)
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+                        }).catch(() => {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    if (showError) {
+                        this.showError(error.message || 'An unknown error occurred');
+                    }
+                    throw error;
+                });
+        },
+
+        get: function(url, showError = true) {
+            return this.request(url, { method: 'GET' }, showError);
+        },
+
+        post: function(url, data = null, showError = true) {
+            return this.request(url, {
+                method: 'POST',
+                body: data ? JSON.stringify(data) : null
+            }, showError);
+        },
+
+        showError: function(message) {
+            // Create a toast-style error notification
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300';
+            errorDiv.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <span>❌</span>
+                    <span>${message}</span>
+                    <button class="ml-2 text-white hover:text-gray-200" onclick="this.parentElement.parentElement.remove()">✕</button>
+                </div>
+            `;
+            
+            document.body.appendChild(errorDiv);
+            
+            // Slide in
+            setTimeout(() => {
+                errorDiv.classList.remove('translate-x-full');
+            }, 10);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (errorDiv.parentElement) {
+                    errorDiv.classList.add('translate-x-full');
+                    setTimeout(() => errorDiv.remove(), 300);
+                }
+            }, 5000);
+        }
+    },
+
+    // Hash management for state persistence
+    hash: {
+        get: function() {
+            return this.decode(window.location.hash);
+        },
+
+        set: function(hash) {
+            const encoded = this.encode(hash);
+            if (window.history) {
+                window.history.replaceState(undefined, undefined, '#' + encoded);
+            } else {
+                location.replace('#' + encoded);
+            }
+        },
+
+        modify: function(newHash) {
+            this.set(Object.assign(this.get(), newHash));
+        },
+
+        remove: function(keys) {
+            const keysArray = Array.isArray(keys) ? keys : [keys];
+            const hash = this.get();
+            keysArray.forEach(key => delete hash[key]);
+            this.set(hash);
+        },
+
+        decode: function(hashString) {
+            if (hashString.indexOf('#') === 0) hashString = hashString.substring(1);
+            if (hashString.length <= 0) return {};
+            
+            const params = new URLSearchParams(hashString);
+            const decoded = {};
+            for (const [key, value] of params) {
+                decoded[key] = decodeURIComponent(value);
+            }
+            return decoded;
+        },
+
+        encode: function(hash) {
+            return new URLSearchParams(hash).toString();
+        }
+    },
+
+    // Enhanced DOM utilities
+    dom: {
+        create: function(tag, className = '', attributes = {}) {
+            const element = document.createElement(tag);
+            if (className) element.className = className;
+            Object.entries(attributes).forEach(([key, value]) => {
+                element.setAttribute(key, value);
+            });
+            return element;
+        },
+
+        animate: function(element, className, duration = 300) {
+            return new Promise(resolve => {
+                element.classList.add(className);
+                setTimeout(() => {
+                    element.classList.remove(className);
+                    resolve();
+                }, duration);
+            });
+        }
+    },
+
+    // Debounce utility for performance
+    debounce: function(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+};
+
+// Mural - Collaborative Pixel Art Application with Optimized Rendering
 class Mural {
     constructor() {
         this.canvas = document.getElementById('canvas');
@@ -9,12 +159,29 @@ class Mural {
         this.panX = 0;
         this.panY = 0;
         this.isDragging = false;
+        this.dragStartTime = 0;
+        this.dragStartX = 0;
+        this.dragStartY = 0;
         this.lastMouseX = 0;
         this.lastMouseY = 0;
         this.userPixelCount = 0;
         this.totalPixelCount = 0;
         this.cooldownTimer = null;
         this.cooldownRemaining = 0;
+        
+        // Performance optimizations
+        this.debouncedUpdateCoords = MuralUtils.debounce(this.updateCoordinateDisplay.bind(this), 16); // ~60fps
+        
+        // Pre-rendered canvas system
+        this.pixelData = new Map(); // Store pixel data efficiently
+        this.needsRedraw = true;
+        this.isRendering = false;
+        
+        // Viewport settings
+        this.viewportWidth = 600;
+        this.viewportHeight = 600;
+        this.originalWidth = 500;
+        this.originalHeight = 500;
         
         // Color palette
         this.colors = [
@@ -38,58 +205,88 @@ class Mural {
         this.setupSocketEvents();
         this.loadCanvas();
         this.checkCooldown();
+        
+        // Start with 1:1 zoom
+        this.zoom = 1;
+        this.updateZoomDisplay();
         this.centerCanvas(); // Center the canvas on initialization
+        
+        // Restore state from URL hash if available
+        this.restoreStateFromHash();
+        
+        // Handle browser back/forward
+        window.addEventListener('hashchange', () => this.restoreStateFromHash());
     }
     
     setupCanvas() {
-        // Set canvas size
-        this.canvas.width = 1000;
-        this.canvas.height = 1000;
-        
-        // Fill with white background
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        // Set canvas to match viewport size
+        this.canvas.width = this.viewportWidth;
+        this.canvas.height = this.viewportHeight;
         
         // Set pixel art rendering
         this.ctx.imageSmoothingEnabled = false;
         
-        // Store original canvas size for scaling calculations
-        this.originalWidth = 1000;
-        this.originalHeight = 1000;
+        // Set initial zoom and position
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
         
-        // Initialize canvas display
-        this.updateCanvasTransform();
+        // Center the view initially
+        this.centerCanvas();
+        
+        // Start render loop
+        this.startRenderLoop();
     }
     
     centerCanvas() {
-        // Center the canvas so that pixel (500, 500) is in the center of the viewport
-        const container = this.canvas.parentElement;
+        // Center the view on the middle of the canvas
+        this.panX = (this.viewportWidth - this.originalWidth * this.zoom) / 2;
+        this.panY = (this.viewportHeight - this.originalHeight * this.zoom) / 2;
+        this.needsRedraw = true;
+    }
+    
+    startRenderLoop() {
+        const render = () => {
+            if (this.needsRedraw && !this.isRendering) {
+                this.renderCanvas();
+            }
+            requestAnimationFrame(render);
+        };
+        requestAnimationFrame(render);
+    }
+    
+    renderCanvas() {
+        this.isRendering = true;
+        this.needsRedraw = false;
         
-        // Get actual container dimensions
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
+        // Clear canvas with white background
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Calculate the center of the container
-        const centerX = containerWidth / 2;
-        const centerY = containerHeight / 2;
+        // Calculate visible region
+        const startX = Math.max(0, Math.floor(-this.panX / this.zoom));
+        const startY = Math.max(0, Math.floor(-this.panY / this.zoom));
+        const endX = Math.min(this.originalWidth, Math.ceil((this.viewportWidth - this.panX) / this.zoom));
+        const endY = Math.min(this.originalHeight, Math.ceil((this.viewportHeight - this.panY) / this.zoom));
         
-        // Calculate the display size of the canvas
-        const canvasDisplayWidth = this.originalWidth * this.zoom;
-        const canvasDisplayHeight = this.originalHeight * this.zoom;
+        // Only render visible pixels for performance
+        for (let x = startX; x < endX; x++) {
+            for (let y = startY; y < endY; y++) {
+                const pixelKey = `${x},${y}`;
+                const pixelColor = this.pixelData.get(pixelKey);
+                
+                if (pixelColor) {
+                    const screenX = Math.floor(this.panX + x * this.zoom);
+                    const screenY = Math.floor(this.panY + y * this.zoom);
+                    const pixelSize = Math.ceil(this.zoom);
+                    
+                    this.ctx.fillStyle = pixelColor;
+                    this.ctx.fillRect(screenX, screenY, pixelSize, pixelSize);
+                }
+            }
+        }
         
-        // Calculate desired pan offset to center pixel (500, 500)
-        // (500, 500) should be at the center of the container
-        const pixelCenterX = (500 * this.zoom); // Position of pixel 500 in display coordinates
-        const pixelCenterY = (500 * this.zoom); // Position of pixel 500 in display coordinates
-        
-        const desiredPanX = centerX - pixelCenterX;
-        const desiredPanY = centerY - pixelCenterY;
-        
-        // Apply boundary constraints
-        this.panX = this.clampPan(desiredPanX, 'x');
-        this.panY = this.clampPan(desiredPanY, 'y');
-        
-        this.updateCanvasTransform();
+        this.isRendering = false;
     }
     
     setupColorPalette() {
@@ -116,6 +313,9 @@ class Mural {
                 colorDiv.classList.add('selected');
                 this.selectedColor = color;
                 this.updateSelectedColor(color);
+                
+                // Save color selection to hash
+                this.saveStateToHash();
             });
             
             palette.appendChild(colorDiv);
@@ -128,85 +328,109 @@ class Mural {
     }
     
     setupEventListeners() {
-        // Canvas click event
+        // Canvas click event - Optimized for direct coordinate calculation
         this.canvas.addEventListener('click', (e) => {
-            if (!this.isDragging) {
+            // Only place pixel if we're not in the middle of a drag operation
+            // and the click wasn't generated by the drag detection logic
+            if (!this.isDragging && !e.isTrusted) {
                 const rect = this.canvas.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
                 
                 // Convert screen coordinates to canvas coordinates
-                const x = Math.floor(mouseX / this.zoom);
-                const y = Math.floor(mouseY / this.zoom);
+                const x = Math.floor((mouseX - this.panX) / this.zoom);
+                const y = Math.floor((mouseY - this.panY) / this.zoom);
                 
                 // Only place pixel if coordinates are valid
-                if (x >= 0 && x < 1000 && y >= 0 && y < 1000) {
+                if (x >= 0 && x < this.originalWidth && y >= 0 && y < this.originalHeight) {
                     this.placePixel(x, y, this.selectedColor);
                 }
-                // Silently ignore out-of-bounds clicks
             }
         });
         
-        // Mouse move for coordinates display
+        // Mouse move for coordinates display - Optimized
         this.canvas.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             
             // Convert screen coordinates to canvas coordinates
-            // Since we're using CSS scaling, we need to account for the zoom factor
-            const x = Math.floor(mouseX / this.zoom);
-            const y = Math.floor(mouseY / this.zoom);
+            const x = Math.floor((mouseX - this.panX) / this.zoom);
+            const y = Math.floor((mouseY - this.panY) / this.zoom);
             
-            // Only show coordinates if they're in bounds
-            const coordsElement = document.getElementById('cursor-coords');
-            if (x >= 0 && x < 1000 && y >= 0 && y < 1000) {
-                coordsElement.textContent = `${x}, ${y}`;
-                coordsElement.className = 'text-green-400';
-                this.canvas.style.cursor = 'crosshair';
-            } else {
-                coordsElement.textContent = 'Outside canvas';
-                coordsElement.className = 'text-gray-500';
-                this.canvas.style.cursor = 'default';
-            }
-            
+            // Use debounced coordinate update for better performance
+            const isValid = x >= 0 && x < this.originalWidth && y >= 0 && y < this.originalHeight;
+            this.debouncedUpdateCoords(x, y, isValid);
+
             if (this.isDragging) {
                 const deltaX = e.clientX - this.lastMouseX;
                 const deltaY = e.clientY - this.lastMouseY;
                 
-                // Apply delta and enforce boundaries
-                const newPanX = this.panX + deltaX;
-                const newPanY = this.panY + deltaY;
+                // Apply delta directly without clamping for smooth movement
+                this.panX += deltaX;
+                this.panY += deltaY;
                 
-                this.panX = this.clampPan(newPanX, 'x');
-                this.panY = this.clampPan(newPanY, 'y');
+                // Clamp after movement
+                this.panX = this.clampPan(this.panX, 'x');
+                this.panY = this.clampPan(this.panY, 'y');
                 
-                this.updateCanvasTransform();
+                this.needsRedraw = true;
                 this.lastMouseX = e.clientX;
                 this.lastMouseY = e.clientY;
+                
+                // Save state when panning
+                this.saveStateToHash();
             }
         });
         
-        // Pan functionality
+        // Pan functionality - Enhanced to support regular click and drag
         this.canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 1 || e.ctrlKey) { // Middle click or Ctrl+click
+            // Allow panning with left click, middle click, or Ctrl+click
+            if (e.button === 0 || e.button === 1 || e.ctrlKey) {
                 e.preventDefault();
                 this.isDragging = true;
+                this.dragStartTime = Date.now();
+                this.dragStartX = e.clientX;
+                this.dragStartY = e.clientY;
                 this.lastMouseX = e.clientX;
                 this.lastMouseY = e.clientY;
                 this.canvas.style.cursor = 'grabbing';
+                
+                // Prevent text selection while dragging
+                document.body.style.userSelect = 'none';
             }
         });
         
-        document.addEventListener('mouseup', () => {
+        document.addEventListener('mouseup', (e) => {
             if (this.isDragging) {
+                const dragEndTime = Date.now();
+                const dragDuration = dragEndTime - this.dragStartTime;
+                const dragDistance = Math.sqrt(
+                    Math.pow(e.clientX - this.dragStartX, 2) + 
+                    Math.pow(e.clientY - this.dragStartY, 2)
+                );
+                
                 this.isDragging = false;
+                document.body.style.userSelect = '';
+                
+                // If it was a very short drag (< 200ms) and small distance (< 5px), 
+                // treat it as a click for pixel placement
+                if (dragDuration < 200 && dragDistance < 5) {
+                    // Trigger a click event for pixel placement
+                    const clickEvent = new MouseEvent('click', {
+                        clientX: this.dragStartX,
+                        clientY: this.dragStartY,
+                        bubbles: true
+                    });
+                    this.canvas.dispatchEvent(clickEvent);
+                }
+                
                 // Reset cursor based on current mouse position
-                const event = new MouseEvent('mousemove', {
-                    clientX: this.lastMouseX,
-                    clientY: this.lastMouseY
+                const moveEvent = new MouseEvent('mousemove', {
+                    clientX: e.clientX,
+                    clientY: e.clientY
                 });
-                this.canvas.dispatchEvent(event);
+                this.canvas.dispatchEvent(moveEvent);
             }
         });
         
@@ -246,34 +470,19 @@ class Mural {
     }
     
     updateCanvasTransform() {
-        // Instead of CSS transforms, update the canvas display size and adjust context
-        const displayWidth = this.originalWidth * this.zoom;
-        const displayHeight = this.originalHeight * this.zoom;
-        
-        // Set the display size via CSS
-        this.canvas.style.width = `${displayWidth}px`;
-        this.canvas.style.height = `${displayHeight}px`;
-        
-        // Position the canvas
-        this.canvas.style.position = 'relative';
-        this.canvas.style.left = `${this.panX}px`;
-        this.canvas.style.top = `${this.panY}px`;
-        
-        // Ensure pixel-perfect rendering
-        this.canvas.style.imageRendering = 'pixelated';
-        this.canvas.style.imageRendering = '-moz-crisp-edges';
-        this.canvas.style.imageRendering = 'crisp-edges';
+        // No longer needed - we use direct rendering
+        this.needsRedraw = true;
     }
     
     clampPan(panValue, axis) {
-        const container = this.canvas.parentElement;
-        const containerSize = axis === 'x' ? container.clientWidth : container.clientHeight;
-        const canvasDisplaySize = this.originalWidth * this.zoom; // Scaled canvas size
+        const containerSize = axis === 'x' ? this.viewportWidth : this.viewportHeight;
+        const canvasDisplaySize = axis === 'x' ? 
+            (this.originalWidth * this.zoom) : 
+            (this.originalHeight * this.zoom);
         
-        // Calculate the maximum pan values
-        // We want to ensure the canvas is always visible and can't be panned beyond boundaries
-        const maxPan = 0; // Can't pan in positive direction beyond 0,0
-        const minPan = containerSize - canvasDisplaySize; // Can't pan beyond the canvas size
+        // Calculate the maximum and minimum pan values
+        const maxPan = 0; // Can't pan beyond the top-left
+        const minPan = containerSize - canvasDisplaySize; // Can't pan beyond bottom-right
         
         // If canvas is smaller than container, center it
         if (canvasDisplaySize <= containerSize) {
@@ -289,13 +498,33 @@ class Mural {
     }
     
     zoomAt(factor) {
-        // Zoom centered around (500, 500)
+        // Zoom centered around the center of the container
         const newZoom = Math.max(0.1, Math.min(10, this.zoom * factor));
         
         if (newZoom !== this.zoom) {
+            const containerCenterX = this.viewportWidth / 2;
+            const containerCenterY = this.viewportHeight / 2;
+            
+            // Calculate the canvas point that's currently at the center
+            const canvasPointX = (containerCenterX - this.panX) / this.zoom;
+            const canvasPointY = (containerCenterY - this.panY) / this.zoom;
+            
+            // Update zoom
             this.zoom = newZoom;
-            this.centerCanvas(); // Re-center after zoom change
+            
+            // Calculate new pan to keep the same canvas point at the center
+            const newPanX = containerCenterX - (canvasPointX * this.zoom);
+            const newPanY = containerCenterY - (canvasPointY * this.zoom);
+            
+            // Apply boundary constraints
+            this.panX = this.clampPan(newPanX, 'x');
+            this.panY = this.clampPan(newPanY, 'y');
+            
+            this.needsRedraw = true;
             this.updateZoomDisplay();
+            
+            // Save state to hash
+            this.saveStateToHash();
         }
     }
     
@@ -305,28 +534,75 @@ class Mural {
         
         if (newZoom !== this.zoom) {
             // Calculate canvas coordinates of the mouse position
-            const rect = this.canvas.getBoundingClientRect();
-            const canvasX = (mouseX) / this.zoom;
-            const canvasY = (mouseY) / this.zoom;
+            const canvasX = (mouseX - this.panX) / this.zoom;
+            const canvasY = (mouseY - this.panY) / this.zoom;
             
             // Update zoom
             this.zoom = newZoom;
             
-            // Calculate desired pan to keep the same point under the mouse
-            const container = this.canvas.parentElement;
-            const containerRect = container.getBoundingClientRect();
-            const containerMouseX = mouseX + containerRect.left;
-            const containerMouseY = mouseY + containerRect.top;
-            
-            const desiredPanX = containerMouseX - (canvasX * this.zoom);
-            const desiredPanY = containerMouseY - (canvasY * this.zoom);
+            // Calculate new pan to keep the same point under the mouse
+            const newPanX = mouseX - (canvasX * this.zoom);
+            const newPanY = mouseY - (canvasY * this.zoom);
             
             // Apply boundary constraints
-            this.panX = this.clampPan(desiredPanX, 'x');
-            this.panY = this.clampPan(desiredPanY, 'y');
+            this.panX = this.clampPan(newPanX, 'x');
+            this.panY = this.clampPan(newPanY, 'y');
             
-            this.updateCanvasTransform();
+            this.needsRedraw = true;
             this.updateZoomDisplay();
+        }
+    }
+    
+    // State management methods
+    saveStateToHash() {
+        MuralUtils.hash.modify({
+            zoom: this.zoom.toFixed(2),
+            panX: Math.round(this.panX),
+            panY: Math.round(this.panY),
+            color: this.selectedColor
+        });
+    }
+
+    restoreStateFromHash() {
+        const state = MuralUtils.hash.get();
+        
+        if (state.zoom) {
+            this.zoom = parseFloat(state.zoom);
+            this.updateZoomDisplay();
+        }
+        
+        if (state.panX !== undefined && state.panY !== undefined) {
+            this.panX = parseInt(state.panX);
+            this.panY = parseInt(state.panY);
+        }
+        
+        if (state.color && this.colors.includes(state.color)) {
+            this.selectedColor = state.color;
+            this.updateSelectedColor(state.color);
+            // Update UI to show selected color
+            document.querySelectorAll('.color-picker').forEach(el => {
+                el.classList.remove('selected');
+                if (el.dataset.color === state.color) {
+                    el.classList.add('selected');
+                }
+            });
+        }
+        
+        this.needsRedraw = true;
+    }
+
+    // Optimized coordinate display update
+    updateCoordinateDisplay(x, y, isValid) {
+        const coordsElement = document.getElementById('cursor-coords');
+        if (isValid) {
+            coordsElement.textContent = `${x}, ${y}`;
+            coordsElement.className = 'text-green-400';
+            // Set cursor based on drag state
+            this.canvas.style.cursor = this.isDragging ? 'grabbing' : 'crosshair';
+        } else {
+            coordsElement.textContent = 'Outside canvas';
+            coordsElement.className = 'text-gray-500';
+            this.canvas.style.cursor = this.isDragging ? 'grabbing' : 'grab';
         }
     }
     
@@ -354,8 +630,7 @@ class Mural {
     
     async loadCanvas() {
         try {
-            const response = await fetch('/api/canvas');
-            const canvasData = await response.json();
+            const canvasData = await MuralUtils.ajax.get('/api/canvas', false);
             this.loadCanvasData(canvasData);
         } catch (error) {
             console.error('Failed to load canvas:', error);
@@ -364,71 +639,61 @@ class Mural {
     }
     
     loadCanvasData(canvasData) {
-        // Clear canvas
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        // Clear pixel data
+        this.pixelData.clear();
         
-        // Draw pixels
+        // Store pixels in our efficient map
         Object.entries(canvasData).forEach(([key, pixelData]) => {
-            const [x, y] = key.split(',').map(Number);
-            this.drawPixel(x, y, pixelData.color);
+            this.pixelData.set(key, pixelData.color);
         });
         
         this.totalPixelCount = Object.keys(canvasData).length;
         this.updateStats();
+        this.needsRedraw = true;
     }
     
     drawPixel(x, y, color) {
-        this.ctx.fillStyle = color;
-        this.ctx.fillRect(x, y, 1, 1);
+        // Store pixel in our map
+        const key = `${x},${y}`;
+        this.pixelData.set(key, color);
+        this.needsRedraw = true;
     }
     
     async placePixel(x, y, color) {
         // At this point, coordinates should already be validated, but double-check
         if (!Number.isInteger(x) || !Number.isInteger(y) || 
-            x < 0 || x >= 1000 || y < 0 || y >= 1000) {
+            x < 0 || x >= this.originalWidth || y < 0 || y >= this.originalHeight) {
             return; // Silently ignore invalid coordinates
         }
         
         // Check if cooldown is active
         if (this.cooldownRemaining > 0) {
-            this.addActivity(`Cooldown active! Wait ${this.formatTime(this.cooldownRemaining)}`, 'error');
+            MuralUtils.ajax.showError(`Cooldown active! Wait ${this.formatTime(this.cooldownRemaining)}`);
             return;
         }
         
         try {
-            const response = await fetch('/api/place-pixel', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ x, y, color })
-            });
+            const result = await MuralUtils.ajax.post('/api/place-pixel', { x, y, color }, false);
             
-            const result = await response.json();
+            this.userPixelCount++;
+            this.addActivity(`You placed a pixel at (${x}, ${y})`, 'user');
+            this.startCooldown(result.cooldown_remaining);
             
-            if (response.status === 429) {
-                // Cooldown active
-                this.startCooldown(result.cooldown_remaining);
-                this.addActivity(`Cooldown active! Wait ${this.formatTime(result.cooldown_remaining)}`, 'error');
-            } else if (result.success) {
-                this.userPixelCount++;
-                this.addActivity(`You placed a pixel at (${x}, ${y})`, 'user');
-                this.startCooldown(result.cooldown_remaining);
-            } else {
-                this.addActivity(`Failed to place pixel: ${result.error}`, 'error');
-            }
         } catch (error) {
+            if (error.message.includes('429')) {
+                // Extract cooldown from error if available
+                const match = error.message.match(/(\d+)/);
+                const cooldown = match ? parseInt(match[1]) : 60;
+                this.startCooldown(cooldown);
+            }
+            // Error is already displayed by MuralUtils.ajax
             console.error('Failed to place pixel:', error);
-            this.addActivity('Failed to place pixel', 'error');
         }
     }
     
     async checkCooldown() {
         try {
-            const response = await fetch('/api/cooldown');
-            const result = await response.json();
-            
+            const result = await MuralUtils.ajax.get('/api/cooldown', false);
             if (result.cooldown_remaining > 0) {
                 this.startCooldown(result.cooldown_remaining);
             }
