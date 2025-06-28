@@ -23,6 +23,12 @@ class Config:
     
     # CORS settings
     CORS_ORIGINS = ["*"]  # Change this in production to specific domains
+    
+    # Caching configuration
+    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    CACHE_CANVAS_TTL = 60  # Canvas cache TTL in seconds
+    CACHE_USER_STATS_TTL = 300  # User stats cache TTL in seconds
+    CACHE_TOTAL_STATS_TTL = 60  # Total stats cache TTL in seconds
 
 class DevelopmentConfig(Config):
     DEBUG = True
