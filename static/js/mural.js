@@ -177,9 +177,9 @@ class Mural {
         this.needsRedraw = true;
         this.isRendering = false;
         
-        // Viewport settings
-        this.viewportWidth = 600;
-        this.viewportHeight = 600;
+        // Viewport settings - will be set dynamically
+        this.viewportWidth = 600; // initial fallback
+        this.viewportHeight = 600; // initial fallback
         this.originalWidth = 500;
         this.originalHeight = 500;
         
@@ -219,6 +219,11 @@ class Mural {
     }
     
     setupCanvas() {
+        // Get actual container size
+        const container = this.canvas.parentElement;
+        this.viewportWidth = container.clientWidth;
+        this.viewportHeight = container.clientHeight;
+        
         // Set canvas to match viewport size
         this.canvas.width = this.viewportWidth;
         this.canvas.height = this.viewportHeight;
@@ -239,9 +244,24 @@ class Mural {
     }
     
     centerCanvas() {
+        // Calculate the best fit zoom that ensures the 500x500 canvas fills the viewport
+        const zoomX = this.viewportWidth / this.originalWidth;
+        const zoomY = this.viewportHeight / this.originalHeight;
+        const minZoom = Math.max(zoomX, zoomY); // Use the larger zoom to ensure full coverage
+        
+        // Set zoom to at least the minimum required to fill viewport
+        if (this.zoom < minZoom) {
+            this.zoom = minZoom;
+        }
+        
         // Center the view on the middle of the canvas
         this.panX = (this.viewportWidth - this.originalWidth * this.zoom) / 2;
         this.panY = (this.viewportHeight - this.originalHeight * this.zoom) / 2;
+        
+        // Apply clamping to ensure no out-of-bounds is visible
+        this.panX = this.clampPan(this.panX, 'x');
+        this.panY = this.clampPan(this.panY, 'y');
+        
         this.needsRedraw = true;
     }
     
@@ -444,7 +464,11 @@ class Mural {
         });
         
         document.getElementById('reset-view').addEventListener('click', () => {
-            this.zoom = 1;
+            // Calculate the minimum zoom needed to fill the viewport
+            const zoomX = this.viewportWidth / this.originalWidth;
+            const zoomY = this.viewportHeight / this.originalHeight;
+            this.zoom = Math.max(zoomX, zoomY); // Ensure no out-of-bounds is visible
+            
             this.centerCanvas();
             this.updateZoomDisplay();
         });
@@ -460,11 +484,20 @@ class Mural {
             this.zoomAtPoint(zoomFactor, mouseX, mouseY);
         });
         
-        // Window resize handler to maintain centering
+        // Window resize handler to update viewport and maintain centering
         window.addEventListener('resize', () => {
-            // Re-center the canvas when window is resized
+            // Update viewport size and re-center the canvas when window is resized
             setTimeout(() => {
+                const container = this.canvas.parentElement;
+                this.viewportWidth = container.clientWidth;
+                this.viewportHeight = container.clientHeight;
+                
+                // Resize canvas to match new container size
+                this.canvas.width = this.viewportWidth;
+                this.canvas.height = this.viewportHeight;
+                
                 this.centerCanvas();
+                this.needsRedraw = true;
             }, 100); // Small delay to ensure layout has updated
         });
     }
@@ -480,16 +513,11 @@ class Mural {
             (this.originalWidth * this.zoom) : 
             (this.originalHeight * this.zoom);
         
-        // Calculate the maximum and minimum pan values
-        const maxPan = 0; // Can't pan beyond the top-left
+        // Calculate the maximum and minimum pan values to prevent showing out-of-bounds
+        const maxPan = 0; // Can't pan beyond the top-left (0,0)
         const minPan = containerSize - canvasDisplaySize; // Can't pan beyond bottom-right
         
-        // If canvas is smaller than container, center it
-        if (canvasDisplaySize <= containerSize) {
-            return (containerSize - canvasDisplaySize) / 2;
-        }
-        
-        // Clamp the pan value to stay within bounds
+        // Always clamp to prevent showing any white space/out-of-bounds
         return Math.max(minPan, Math.min(maxPan, panValue));
     }
     
@@ -498,8 +526,13 @@ class Mural {
     }
     
     zoomAt(factor) {
+        // Calculate minimum zoom to prevent showing out-of-bounds
+        const zoomX = this.viewportWidth / this.originalWidth;
+        const zoomY = this.viewportHeight / this.originalHeight;
+        const minZoom = Math.max(zoomX, zoomY);
+        
         // Zoom centered around the center of the container
-        const newZoom = Math.max(0.1, Math.min(10, this.zoom * factor));
+        const newZoom = Math.max(minZoom, Math.min(10, this.zoom * factor));
         
         if (newZoom !== this.zoom) {
             const containerCenterX = this.viewportWidth / 2;
@@ -529,8 +562,13 @@ class Mural {
     }
     
     zoomAtPoint(factor, mouseX, mouseY) {
+        // Calculate minimum zoom to prevent showing out-of-bounds
+        const zoomX = this.viewportWidth / this.originalWidth;
+        const zoomY = this.viewportHeight / this.originalHeight;
+        const minZoom = Math.max(zoomX, zoomY);
+        
         // Zoom at a specific point (for mouse wheel)
-        const newZoom = Math.max(0.1, Math.min(10, this.zoom * factor));
+        const newZoom = Math.max(minZoom, Math.min(10, this.zoom * factor));
         
         if (newZoom !== this.zoom) {
             // Calculate canvas coordinates of the mouse position
