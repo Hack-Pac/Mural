@@ -52,13 +52,6 @@ class Mural {
         
         // Set pixel art rendering
         this.ctx.imageSmoothingEnabled = false;
-        
-        // Store original canvas size for scaling calculations
-        this.originalWidth = 1000;
-        this.originalHeight = 1000;
-        
-        // Initialize canvas display
-        this.updateCanvasTransform();
     }
     
     centerCanvas() {
@@ -73,17 +66,9 @@ class Mural {
         const centerX = containerWidth / 2;
         const centerY = containerHeight / 2;
         
-        // Calculate the display size of the canvas
-        const canvasDisplayWidth = this.originalWidth * this.zoom;
-        const canvasDisplayHeight = this.originalHeight * this.zoom;
-        
-        // Calculate desired pan offset to center pixel (500, 500)
-        // (500, 500) should be at the center of the container
-        const pixelCenterX = (500 * this.zoom); // Position of pixel 500 in display coordinates
-        const pixelCenterY = (500 * this.zoom); // Position of pixel 500 in display coordinates
-        
-        const desiredPanX = centerX - pixelCenterX;
-        const desiredPanY = centerY - pixelCenterY;
+        // Calculate desired pan offset to center (500, 500)
+        const desiredPanX = centerX - (500 * this.zoom);
+        const desiredPanY = centerY - (500 * this.zoom);
         
         // Apply boundary constraints
         this.panX = this.clampPan(desiredPanX, 'x');
@@ -136,14 +121,10 @@ class Mural {
                 const mouseY = e.clientY - rect.top;
                 
                 // Convert screen coordinates to canvas coordinates
-                const x = Math.floor(mouseX / this.zoom);
-                const y = Math.floor(mouseY / this.zoom);
+                const x = Math.floor((mouseX - this.panX) / this.zoom);
+                const y = Math.floor((mouseY - this.panY) / this.zoom);
                 
-                // Only place pixel if coordinates are valid
-                if (x >= 0 && x < 1000 && y >= 0 && y < 1000) {
-                    this.placePixel(x, y, this.selectedColor);
-                }
-                // Silently ignore out-of-bounds clicks
+                this.placePixel(x, y, this.selectedColor);
             }
         });
         
@@ -154,20 +135,19 @@ class Mural {
             const mouseY = e.clientY - rect.top;
             
             // Convert screen coordinates to canvas coordinates
-            // Since we're using CSS scaling, we need to account for the zoom factor
-            const x = Math.floor(mouseX / this.zoom);
-            const y = Math.floor(mouseY / this.zoom);
+            const x = Math.floor((mouseX - this.panX) / this.zoom);
+            const y = Math.floor((mouseY - this.panY) / this.zoom);
             
-            // Only show coordinates if they're in bounds
+            // Show coordinates and indicate if they're in bounds
             const coordsElement = document.getElementById('cursor-coords');
             if (x >= 0 && x < 1000 && y >= 0 && y < 1000) {
                 coordsElement.textContent = `${x}, ${y}`;
                 coordsElement.className = 'text-green-400';
                 this.canvas.style.cursor = 'crosshair';
             } else {
-                coordsElement.textContent = 'Outside canvas';
-                coordsElement.className = 'text-gray-500';
-                this.canvas.style.cursor = 'default';
+                coordsElement.textContent = `${x}, ${y} (out of bounds)`;
+                coordsElement.className = 'text-red-400';
+                this.canvas.style.cursor = 'not-allowed';
             }
             
             if (this.isDragging) {
@@ -246,38 +226,22 @@ class Mural {
     }
     
     updateCanvasTransform() {
-        // Instead of CSS transforms, update the canvas display size and adjust context
-        const displayWidth = this.originalWidth * this.zoom;
-        const displayHeight = this.originalHeight * this.zoom;
-        
-        // Set the display size via CSS
-        this.canvas.style.width = `${displayWidth}px`;
-        this.canvas.style.height = `${displayHeight}px`;
-        
-        // Position the canvas
-        this.canvas.style.position = 'relative';
-        this.canvas.style.left = `${this.panX}px`;
-        this.canvas.style.top = `${this.panY}px`;
-        
-        // Ensure pixel-perfect rendering
-        this.canvas.style.imageRendering = 'pixelated';
-        this.canvas.style.imageRendering = '-moz-crisp-edges';
-        this.canvas.style.imageRendering = 'crisp-edges';
+        this.canvas.style.transform = `scale(${this.zoom}) translate(${this.panX / this.zoom}px, ${this.panY / this.zoom}px)`;
     }
     
     clampPan(panValue, axis) {
         const container = this.canvas.parentElement;
         const containerSize = axis === 'x' ? container.clientWidth : container.clientHeight;
-        const canvasDisplaySize = this.originalWidth * this.zoom; // Scaled canvas size
+        const canvasSize = 1000 * this.zoom; // Canvas is always 1000x1000
         
         // Calculate the maximum pan values
         // We want to ensure the canvas is always visible and can't be panned beyond boundaries
         const maxPan = 0; // Can't pan in positive direction beyond 0,0
-        const minPan = containerSize - canvasDisplaySize; // Can't pan beyond the canvas size
+        const minPan = containerSize - canvasSize; // Can't pan beyond the canvas size
         
         // If canvas is smaller than container, center it
-        if (canvasDisplaySize <= containerSize) {
-            return (containerSize - canvasDisplaySize) / 2;
+        if (canvasSize <= containerSize) {
+            return (containerSize - canvasSize) / 2;
         }
         
         // Clamp the pan value to stay within bounds
@@ -293,8 +257,21 @@ class Mural {
         const newZoom = Math.max(0.1, Math.min(10, this.zoom * factor));
         
         if (newZoom !== this.zoom) {
+            const container = this.canvas.parentElement;
+            const centerX = container.clientWidth / 2;
+            const centerY = container.clientHeight / 2;
+            
+            // Calculate desired pan to keep (500, 500) centered
+            const desiredPanX = centerX - (500 * newZoom);
+            const desiredPanY = centerY - (500 * newZoom);
+            
             this.zoom = newZoom;
-            this.centerCanvas(); // Re-center after zoom change
+            
+            // Apply boundary constraints
+            this.panX = this.clampPan(desiredPanX, 'x');
+            this.panY = this.clampPan(desiredPanY, 'y');
+            
+            this.updateCanvasTransform();
             this.updateZoomDisplay();
         }
     }
@@ -305,21 +282,15 @@ class Mural {
         
         if (newZoom !== this.zoom) {
             // Calculate canvas coordinates of the mouse position
-            const rect = this.canvas.getBoundingClientRect();
-            const canvasX = (mouseX) / this.zoom;
-            const canvasY = (mouseY) / this.zoom;
+            const canvasX = (mouseX - this.panX) / this.zoom;
+            const canvasY = (mouseY - this.panY) / this.zoom;
             
             // Update zoom
             this.zoom = newZoom;
             
             // Calculate desired pan to keep the same point under the mouse
-            const container = this.canvas.parentElement;
-            const containerRect = container.getBoundingClientRect();
-            const containerMouseX = mouseX + containerRect.left;
-            const containerMouseY = mouseY + containerRect.top;
-            
-            const desiredPanX = containerMouseX - (canvasX * this.zoom);
-            const desiredPanY = containerMouseY - (canvasY * this.zoom);
+            const desiredPanX = mouseX - (canvasX * this.zoom);
+            const desiredPanY = mouseY - (canvasY * this.zoom);
             
             // Apply boundary constraints
             this.panX = this.clampPan(desiredPanX, 'x');
@@ -384,10 +355,11 @@ class Mural {
     }
     
     async placePixel(x, y, color) {
-        // At this point, coordinates should already be validated, but double-check
+        // Strict boundary checking - canvas is exactly 1000x1000 (0-999 inclusive)
         if (!Number.isInteger(x) || !Number.isInteger(y) || 
             x < 0 || x >= 1000 || y < 0 || y >= 1000) {
-            return; // Silently ignore invalid coordinates
+            this.addActivity(`Pixel out of bounds! Valid range: 0-999. Attempted: (${x}, ${y})`, 'error');
+            return;
         }
         
         // Check if cooldown is active

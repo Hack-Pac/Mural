@@ -5,25 +5,14 @@
     position: relative;
     background: #f0f0f0;
     border: 2px solid #e0e0e0;
+    overflow: hidden; /* Ensure no canvas overflow is visible */
 }
 
-/* Scrollbar styling */
-.canvas-container::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
-}
-
-.canvas-container::-webkit-scrollbar-track {
-    background: #1f2937;
-}
-
-.canvas-container::-webkit-scrollbar-thumb {
-    background: #4b5563;
-    border-radius: 6px;
-}
-
-.canvas-container::-webkit-scrollbar-thumb:hover {
-    background: #6b7280;
+#canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
 }
 
 /* Activity feed styling */
