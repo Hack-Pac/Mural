@@ -41,7 +41,7 @@ const MuralUtils = {
         },
 
         showError: function(message) {
-            // Create a toast-style error notification
+            // Create a toast-style error notification with theme awareness
             const errorDiv = document.createElement('div');
             errorDiv.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300';
             errorDiv.innerHTML = `
@@ -51,7 +51,6 @@ const MuralUtils = {
                     <button class="ml-2 text-white hover:text-gray-200" onclick="this.parentElement.parentElement.remove()">✕</button>
                 </div>
             `;
-            
             document.body.appendChild(errorDiv);
             
             // Slide in
@@ -145,6 +144,82 @@ const MuralUtils = {
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
         };
+    },
+
+    // Theme management
+    theme: {
+        themes: ['dark', 'light', 'coffee'],
+        
+        init: function() {
+            // Check for saved theme preference or default to dark mode
+            const savedTheme = localStorage.getItem('mural-theme') || 'dark';
+            this.setTheme(savedTheme);
+            this.setupToggle();
+        },
+
+        // Set the theme and update the UI accordingly
+        setTheme: function(theme) {
+            if (!this.themes.includes(theme)) {
+                theme = 'dark'; // fallback to dark if invalid theme
+            }
+            
+            const htmlElement = document.documentElement;
+            const bodyElement = document.body;
+            
+            // Remove all theme classes
+            htmlElement.classList.remove('dark', 'coffee');
+            
+            // Add appropriate theme class
+            if (theme === 'dark') {
+                htmlElement.classList.add('dark');
+            } else if (theme === 'coffee') {
+                htmlElement.classList.add('coffee');
+            }
+            // light theme has no class (default)
+            
+            // Update body data attribute for additional styling hooks
+            if (bodyElement) {
+                bodyElement.setAttribute('data-theme', theme);
+            }
+            
+            localStorage.setItem('mural-theme', theme);
+            this.updateToggleButton(theme);
+        },
+
+        toggleTheme: function() {
+            const currentTheme = localStorage.getItem('mural-theme') || 'dark';
+            const currentIndex = this.themes.indexOf(currentTheme);
+            const nextIndex = (currentIndex + 1) % this.themes.length;
+            const newTheme = this.themes[nextIndex];
+            this.setTheme(newTheme);
+        },
+
+        setupToggle: function() {
+            const toggleButton = document.getElementById('theme-toggle');
+            if (toggleButton) {
+                toggleButton.addEventListener('click', () => {
+                    this.toggleTheme();
+                });
+            }
+        },
+
+        updateToggleButton: function(theme) {
+            // Icons will be handled by CSS classes automatically
+            // due to the theme-specific classes in the HTML
+            // Update the title to show next theme
+            const toggleButton = document.getElementById('theme-toggle');
+            if (toggleButton) {
+                const currentIndex = this.themes.indexOf(theme);
+                const nextIndex = (currentIndex + 1) % this.themes.length;
+                const nextTheme = this.themes[nextIndex];
+                const nextThemeCapitalized = nextTheme.charAt(0).toUpperCase() + nextTheme.slice(1);
+                toggleButton.title = `Switch to ${nextThemeCapitalized} Theme`;
+            }
+        },
+
+        getCurrentTheme: function() {
+            return localStorage.getItem('mural-theme') || 'dark';
+        }
     }
 };
 
@@ -872,5 +947,7 @@ class Mural {
 
 // Initialize the application when the page loads
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize theme before creating Mural instance
+    MuralUtils.theme.init();
     new Mural();
 });

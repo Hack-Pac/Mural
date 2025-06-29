@@ -10,6 +10,7 @@
 
 #canvas {
     display: block;
+    cursor: crosshair;
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
@@ -37,6 +38,11 @@
 .color-picker:hover {
     transform: scale(1.1);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.color-picker.selected {
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 0 3px #3b82f6;
 }
 
 /* Button hover effects */
@@ -152,4 +158,129 @@ button:active {
         width: 1.5rem;
         height: 1.5rem;
     }
+}
+
+/* Theme transition */
+* {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Canvas container styling for both themes */
+.canvas-container {
+    background: #ffffff;
+}
+
+/* Theme toggle button styles */
+.theme-toggle {
+    background: transparent;
+    border: 1px solid;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+    transform: scale(1.05);
+}
+
+/* Dark mode styles */
+.dark .theme-toggle {
+    border-color: #475569;
+    color: #f1f5f9;
+}
+
+.dark .theme-toggle:hover {
+    background-color: #334155;
+}
+
+/* Light mode styles */
+html:not(.dark):not(.coffee) .theme-toggle {
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+html:not(.dark):not(.coffee) .theme-toggle:hover {
+    background-color: #f1f5f9;
+}
+
+/* Coffee mode styles */
+.coffee .theme-toggle {
+    border-color: #6b3e26;
+    color: #f4e4d1;
+}
+
+.coffee .theme-toggle:hover {
+    background-color: #6b3e26;
+}
+
+/* Coffee theme global styles */
+.coffee {
+    background-color: #2d1b14 !important;
+    color: #f4e4d1 !important;
+}
+
+.coffee header {
+    background-color: #4a2c1a !important;
+    border-color: #6b3e26 !important;
+}
+
+.coffee h1 {
+    color: #cd853f !important;
+}
+
+.coffee .bg-white,
+.coffee [class*="bg-white"] {
+    background-color: #f5efe7 !important;
+}
+
+.coffee .text-gray-900,
+.coffee [class*="text-gray-900"] {
+    color: #2d1b14 !important;
+}
+
+.coffee .text-gray-500,
+.coffee [class*="text-gray-500"] {
+    color: #8b4513 !important;
+}
+
+.coffee .text-gray-600,
+.coffee [class*="text-gray-600"] {
+    color: #6b3e26 !important;
+}
+
+.coffee .text-gray-700,
+.coffee [class*="text-gray-700"] {
+    color: #4a2c1a !important;
+}
+
+.coffee .border-gray-200,
+.coffee [class*="border-gray-200"] {
+    border-color: #e8ddd4 !important;
+}
+
+.coffee .border-gray-300,
+.coffee [class*="border-gray-300"] {
+    border-color: #d4b895 !important;
+}
+
+.coffee .bg-gray-100,
+.coffee [class*="bg-gray-100"] {
+    background-color: #8b4513 !important;
+}
+
+.coffee .bg-gray-100:hover,
+.coffee [class*="bg-gray-100"]:hover {
+    background-color: #cd853f !important;
+}
+
+.coffee .bg-blue-600 {
+    background-color: #cd853f !important;
+}
+
+.coffee .bg-blue-600:hover {
+    background-color: #8b4513 !important;
 }
