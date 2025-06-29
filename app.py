@@ -11,6 +11,8 @@ import logging
 from user_data import user_data_manager
 from challenges import challenge_manager
 from shop import shop
+from functools import wraps
+import hashlib
 
 load_dotenv()
 
@@ -35,6 +37,12 @@ connected_users = set()
 CANVAS_WIDTH = app.config['CANVAS_WIDTH']
 CANVAS_HEIGHT = app.config['CANVAS_HEIGHT']
 
+# Message batching for WebSocket
+pixel_update_queue = []
+pixel_batch_timer = None
+PIXEL_BATCH_SIZE = 20
+PIXEL_BATCH_DELAY = 0.1  # 100ms
+
 config_obj = config[config_name]
 PIXEL_COOLDOWN = app.config['PIXEL_COOLDOWN']
 
@@ -43,10 +51,77 @@ logger.info(f"Environment: {config_name}")
 logger.info(f"PIXEL_COOLDOWN from config: {PIXEL_COOLDOWN}")
 logger.info(f"PIXEL_COOLDOWN from env: {os.environ.get('PIXEL_COOLDOWN', 'Not set')}")
 
+# Rate limiting decorator
+rate_limit_data = {}
+
+def rate_limit(max_requests=60, window_seconds=60):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            user_id = session.get('user_id', request.remote_addr)
+            now = datetime.now()
+            
+            # Clean old entries
+            global rate_limit_data
+            rate_limit_data = {k: v for k, v in rate_limit_data.items() 
+                             if (now - v['first_request']).seconds < window_seconds}
+            
+            if user_id in rate_limit_data:
+                user_data = rate_limit_data[user_id]
+                if (now - user_data['first_request']).seconds < window_seconds:
+                    if user_data['count'] >= max_requests:
+                        return jsonify({'error': 'Rate limit exceeded'}), 429
+                    user_data['count'] += 1
+                else:
+                    rate_limit_data[user_id] = {'first_request': now, 'count': 1}
+            else:
+                rate_limit_data[user_id] = {'first_request': now, 'count': 1}
+            
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses"""
+    # Content Security Policy
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "font-src 'self' data:; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self' ws: wss:; "
+        "frame-ancestors 'none';"
+    )
+    
+    # Other security headers
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
+    # HSTS for production
+    if app.config.get('SESSION_COOKIE_SECURE'):
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    return response
+
 @app.route('/')
 def index():
     if 'user_id' not in session:
+        # Generate a new user ID server-side
         session['user_id'] = str(uuid.uuid4())
+        session['created_at'] = datetime.now().isoformat()
+        session.permanent = True  # Use permanent session with configured lifetime
+    else:
+        # Validate existing session
+        if 'created_at' not in session:
+            # Regenerate session if it's missing metadata
+            session.clear()
+            session['user_id'] = str(uuid.uuid4())
+            session['created_at'] = datetime.now().isoformat()
+            session.permanent = True
     return render_template('index.html')
 
 @app.route('/favicon.ico')
@@ -54,25 +129,57 @@ def favicon():
     return '', 204
 
 @app.route('/api/canvas')
+@rate_limit(max_requests=120, window_seconds=60)  # Higher limit for canvas fetching
 def get_canvas():
-    """Get the current canvas state with caching"""
-    # Try to get from cache first
+    """Get the current canvas state with caching and compression support"""
     try:
-        cached_canvas = MuralCache.get_canvas_data()
-        if cached_canvas is not None:
-            logger.info("Serving canvas from cache")
-            return jsonify(cached_canvas)
+        # Check if client accepts gzip
+        accept_encoding = request.headers.get('Accept-Encoding', '')
+        
+        # Try to get from cache first
+        try:
+            cached_canvas = MuralCache.get_canvas_data()
+            if cached_canvas is not None:
+                logger.info("Serving canvas from cache")
+                response = jsonify(cached_canvas)
+                
+                # Add compression if supported
+                if 'gzip' in accept_encoding and len(canvas_data) > 1000:
+                    import gzip
+                    import io
+                    
+                    json_data = json.dumps(cached_canvas)
+                    gzip_buffer = io.BytesIO()
+                    with gzip.GzipFile(mode='wb', fileobj=gzip_buffer) as gzip_file:
+                        gzip_file.write(json_data.encode('utf-8'))
+                    
+                    response = app.response_class(
+                        gzip_buffer.getvalue(),
+                        mimetype='application/json',
+                        headers={'Content-Encoding': 'gzip'}
+                    )
+                
+                return response
+        except Exception as e:
+            logger.error(f"Error getting canvas from cache: {e}")
+        
+        # Cache miss or error - return current data and try to cache it
+        logger.info("Cache miss or error - serving live canvas data")
+        
+        # Ensure canvas_data is not corrupted
+        if not isinstance(canvas_data, dict):
+            logger.error(f"Canvas data corrupted, type: {type(canvas_data)}")
+            return jsonify({'error': 'Canvas data corrupted'}), 500
+        
+        try:
+            MuralCache.set_canvas_data(canvas_data, expire=app.config.get('CACHE_CANVAS_TTL', 60))
+        except Exception as e:
+            logger.error(f"There was an error caching canvas data: {e}")
+        
+        return jsonify(canvas_data)
     except Exception as e:
-        logger.error(f"Error getting canvas from cache: {e}")
-    
-    # Cache miss or error - return current data and try to cache it
-    logger.info("Cache miss or error - serving live canvas data")
-    try:
-        MuralCache.set_canvas_data(canvas_data, expire=app.config.get('CACHE_CANVAS_TTL', 60))
-    except Exception as e:
-        logger.error(f" There was an error caching canvas data: {e}")
-    
-    return jsonify(canvas_data)
+        logger.error(f"Unexpected error in get_canvas: {e}")
+        return jsonify({'error': 'Failed to retrieve canvas data'}), 500
 
 @app.route('/api/cooldown')
 def get_cooldown(): 
@@ -378,18 +485,33 @@ def complete_challenges():
     })
 
 @app.route('/api/place-pixel', methods=['POST'])
+@rate_limit(max_requests=app.config.get('RATE_LIMIT_PIXELS_PER_MINUTE', 60), window_seconds=60)
 def place_pixel():
-    """Place a pixel on the canvas with caching"""
+    """Place a pixel on the canvas with enhanced validation"""
     data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
     x = data.get('x')
     y = data.get('y')
     color = data.get('color')
     
+    # Validate all fields are present
     if not all([x is not None, y is not None, color]):
         return jsonify({'error': 'Missing required fields'}), 400
     
+    # Validate coordinate types
+    if not isinstance(x, int) or not isinstance(y, int):
+        return jsonify({'error': 'Coordinates must be integers'}), 400
+    
+    # Validate coordinate bounds
     if not (0 <= x < CANVAS_WIDTH and 0 <= y < CANVAS_HEIGHT):
         return jsonify({'error': 'Coordinates out of bounds'}), 400
+    
+    # Validate color format
+    import re
+    if not isinstance(color, str) or not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+        return jsonify({'error': 'Invalid color format. Must be hex color (#RRGGBB)'}), 400
     
     # Get or create user ID
     user_id = session.get('user_id')
@@ -495,12 +617,19 @@ def place_pixel():
             current_progress = user_data['challenge_progress'].get(challenge_id, 0) + 1
             user_data_manager.update_challenge_progress(user_id, challenge_id, current_progress)
     
-    socketio.emit('pixel_placed', {
+    # Hash user ID for privacy in broadcasts
+    hashed_user_id = hashlib.sha256(user_id.encode()).hexdigest()[:8]
+    
+    # Add to batch queue instead of immediate emit
+    pixel_update = {
         'x': x,
         'y': y,
         'color': color,
-        'user_id': user_id
-    })
+        'user_id': hashed_user_id  # Send hashed ID for privacy
+    }
+    
+    # Use batching for better performance
+    batch_pixel_update(pixel_update)
     
     return jsonify({
         'success': True,
@@ -511,20 +640,97 @@ def place_pixel():
 
 @socketio.on('connect')
 def handle_connect():
-    print('Client connected')
-    connected_users.add(request.sid)
-    emit('canvas_update', canvas_data)
-    # Emit the updated user count to all connected clients
-    socketio.emit('user_count', {'count': len(connected_users)})
-    logger.info(f"User connected. Total users: {len(connected_users)}")
+    try:
+        # Validate session before allowing WebSocket connection
+        if 'user_id' not in session:
+            logger.warning(f"WebSocket connection attempt without valid session from {request.remote_addr}")
+            return False  # Reject connection
+        
+        # Validate request.sid
+        if not request.sid:
+            logger.error("No socket ID provided")
+            return False
+        
+        print('Client connected')
+        connected_users.add(request.sid)
+        
+        # Send canvas data with rate limiting
+        if len(canvas_data) > 10000:  # Large canvas
+            # Send a message to fetch via API instead
+            emit('canvas_large', {'message': 'Please fetch canvas via API'})
+        else:
+            # Send a sanitized copy of canvas data
+            safe_canvas = {k: v for k, v in canvas_data.items() if isinstance(v, dict) and 'color' in v}
+            emit('canvas_update', safe_canvas)
+        
+        # Emit the updated user count to all connected clients
+        socketio.emit('user_count', {'count': len(connected_users)})
+        logger.info(f"User {session['user_id']} connected. Total users: {len(connected_users)}")
+    except Exception as e:
+        logger.error(f"Error in handle_connect: {e}")
+        return False
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print('Client disconnected')
-    connected_users.discard(request.sid)
-    # Emit the updated user count to all connected clients
-    socketio.emit('user_count', {'count': len(connected_users)})
-    logger.info(f"User disconnected. Total users: {len(connected_users)}")
+    try:
+        print('Client disconnected')
+        if hasattr(request, 'sid') and request.sid:
+            connected_users.discard(request.sid)
+        # Emit the updated user count to all connected clients
+        socketio.emit('user_count', {'count': len(connected_users)})
+        logger.info(f"User disconnected. Total users: {len(connected_users)}")
+    except Exception as e:
+        logger.error(f"Error in handle_disconnect: {e}")
+
+def batch_pixel_update(pixel_update):
+    """Batch pixel updates for efficient WebSocket transmission"""
+    global pixel_update_queue, pixel_batch_timer
+    
+    try:
+        # Validate pixel update
+        if not isinstance(pixel_update, dict) or 'x' not in pixel_update or 'y' not in pixel_update:
+            logger.warning(f"Invalid pixel update: {pixel_update}")
+            return
+        
+        pixel_update_queue.append(pixel_update)
+        
+        # If queue is full, send immediately
+        if len(pixel_update_queue) >= PIXEL_BATCH_SIZE:
+            flush_pixel_batch()
+        elif not pixel_batch_timer:
+            # Schedule batch send
+            import threading
+            pixel_batch_timer = threading.Timer(PIXEL_BATCH_DELAY, flush_pixel_batch)
+            pixel_batch_timer.start()
+    except Exception as e:
+        logger.error(f"Error in batch_pixel_update: {e}")
+
+def flush_pixel_batch():
+    """Send batched pixel updates"""
+    global pixel_update_queue, pixel_batch_timer
+    
+    try:
+        if pixel_batch_timer:
+            pixel_batch_timer.cancel()
+            pixel_batch_timer = None
+        
+        if not pixel_update_queue:
+            return
+        
+        # Create a copy to avoid race conditions
+        updates_to_send = pixel_update_queue[:]
+        pixel_update_queue = []
+        
+        # Send as batch if multiple updates, otherwise single
+        if len(updates_to_send) > 1:
+            socketio.emit('pixel_batch', updates_to_send)
+        else:
+            socketio.emit('pixel_placed', updates_to_send[0])
+            
+    except Exception as e:
+        logger.error(f"Error in flush_pixel_batch: {e}")
+        # Clear the queue to prevent memory issues
+        pixel_update_queue = []
 
 def cleanup_cooldowns():
     """Remove expired cooldowns to prevent memory leaks"""
@@ -736,24 +942,65 @@ def populate_canvas_with_initial_art():
 CANVAS_DATA_FILE = 'canvas_data.json'
 
 def save_canvas_to_file():
-    """Save canvas data to JSON file"""
+    """Save canvas data to JSON file with atomic write"""
     try:
-        with open(CANVAS_DATA_FILE, 'w') as f:
+        # Write to temporary file first
+        temp_file = f"{CANVAS_DATA_FILE}.tmp"
+        with open(temp_file, 'w') as f:
             json.dump(canvas_data, f, indent=2)
+        
+        # Atomic rename
+        os.replace(temp_file, CANVAS_DATA_FILE)
         logger.info(f"Canvas data saved to {CANVAS_DATA_FILE}")
     except Exception as e:
         logger.error(f"Error saving canvas data: {e}")
+        # Clean up temp file if it exists
+        try:
+            if os.path.exists(f"{CANVAS_DATA_FILE}.tmp"):
+                os.remove(f"{CANVAS_DATA_FILE}.tmp")
+        except:
+            pass
 
 def load_canvas_from_file():
-    """Load canvas data from JSON file"""
+    """Load canvas data from JSON file with validation"""
     global canvas_data
     try:
         if os.path.exists(CANVAS_DATA_FILE):
             with open(CANVAS_DATA_FILE, 'r') as f:
-                canvas_data = json.load(f)
-            logger.info(f"Canvas data loaded from {CANVAS_DATA_FILE} - {len(canvas_data)} pixels")
+                loaded_data = json.load(f)
+            
+            # Validate loaded data
+            if not isinstance(loaded_data, dict):
+                logger.error(f"Invalid canvas data format in file: {type(loaded_data)}")
+                canvas_data = {}
+                return
+            
+            # Validate each pixel entry
+            valid_pixels = 0
+            for key, value in loaded_data.items():
+                if isinstance(value, dict) and 'color' in value:
+                    # Validate coordinate format
+                    if re.match(r'^\d+,\d+$', key):
+                        x, y = map(int, key.split(','))
+                        if 0 <= x < CANVAS_WIDTH and 0 <= y < CANVAS_HEIGHT:
+                            valid_pixels += 1
+                        else:
+                            logger.warning(f"Pixel out of bounds: {key}")
+                            del loaded_data[key]
+                    else:
+                        logger.warning(f"Invalid pixel key format: {key}")
+                        del loaded_data[key]
+                else:
+                    logger.warning(f"Invalid pixel data for key {key}: {value}")
+                    del loaded_data[key]
+            
+            canvas_data = loaded_data
+            logger.info(f"Canvas data loaded from {CANVAS_DATA_FILE} - {valid_pixels} valid pixels")
         else:
             logger.info("No existing canvas data file found, starting with empty canvas")
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error loading canvas data: {e}")
+        canvas_data = {}
     except Exception as e:
         logger.error(f"Error loading canvas data: {e}")
         canvas_data = {}

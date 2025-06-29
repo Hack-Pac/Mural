@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Mural - A collaborative pixel art canvas where users can create art together in real-time">
     <title>Mural - Collaborative Pixel Art</title>
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Theme configuration for Tailwind
@@ -42,102 +45,233 @@
             }
         }
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" defer></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="bg-slate-50 dark:bg-gray-900 text-gray-900 dark:text-white min-h-screen transition-colors duration-300" data-theme="dark">
+    <!-- Skip Navigation Links -->
+    <a href="#main-canvas" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded-lg z-50">Skip to canvas</a>
+    <a href="#color-palette" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded-lg z-50">Skip to color palette</a>
+    <a href="#stats" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded-lg z-50">Skip to statistics</a>
+    
+    <!-- Screen Reader Announcements -->
+    <div aria-live="polite" aria-atomic="true" class="sr-only" id="sr-announcements"></div>
+    <div aria-live="assertive" aria-atomic="true" class="sr-only" id="sr-alerts"></div>
+
+    <!-- Snow container for special effects -->
+    <div id="snow-container" class="snow-container hidden" aria-hidden="true"></div>
     <!-- Header -->
-    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 shadow-sm" role="banner">
         <div class="container mx-auto flex items-center justify-between">
-            <h1 class="text-3xl font-bold text-blue-600 dark:text-blue-400">Mural</h1>
+            <h1 class="text-3xl font-bold text-blue-600 dark:text-blue-400" id="page-title">Mural</h1>
             <div class="flex items-center space-x-4">
                 <!-- Theme Toggler -->
-                <button id="theme-toggle" class="theme-toggle" title="Toggle theme (Light/Dark/Coffee)">
+                <button id="theme-toggle" class="theme-toggle" 
+                        aria-label="Change theme. Current theme: Dark" 
+                        aria-controls="theme-menu" 
+                        aria-expanded="false"
+                        title="Toggle theme (Light/Dark/Coffee)">
                     <!-- Moon icon for dark theme -->
-                    <svg id="theme-icon-dark" class="w-5 h-5 hidden dark:block coffee:hidden" fill="currentColor" viewBox="0 0 20 20">
+                    <svg id="theme-icon-dark" class="w-5 h-5 hidden dark:block coffee:hidden" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
                     </svg>
                     <!-- Sun icon for light theme -->
-                    <svg id="theme-icon-light" class="w-5 h-5 block dark:hidden coffee:hidden" fill="currentColor" viewBox="0 0 20 20">
+                    <svg id="theme-icon-light" class="w-5 h-5 block dark:hidden coffee:hidden christmas:hidden" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                         <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path>
                     </svg>
                     <!-- Coffee icon for coffee theme -->
-                    <svg id="theme-icon-coffee" class="w-5 h-5 hidden coffee:block" fill="currentColor" viewBox="0 0 20 20">
+                    <svg id="theme-icon-coffee" class="w-5 h-5 hidden coffee:block christmas:hidden" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M3 3a1 1 0 000 2h.75v6.5A4.5 4.5 0 008.25 16h3.5A4.5 4.5 0 0016.25 11.5V5H17a1 1 0 100-2H3zm11.25 2v6.5A2.5 2.5 0 0111.75 14h-3.5A2.5 2.5 0 015.75 11.5V5h8.5zM18 7a1 1 0 00-1 1v2a2 2 0 11-4 0V8a1 1 0 00-2 0v2a4 4 0 108 0V8a1 1 0 00-1-1z"/>
+                    </svg>
+                    <!-- Christmas tree icon for christmas theme -->
+                    <svg id="theme-icon-christmas" class="w-5 h-5 hidden christmas:block" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 1l-3 4h2l-3 4h2l-3 4h2l-2 3h12l-2-3h2l-3-4h2l-3-4h2l-3-4z M10 17c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-1h4v1z"/>
                     </svg>
                 </button>
                 
-                <span class="text-sm text-gray-500 dark:text-gray-400">Connected: <span id="user-count">0</span></span>
-                <div class="flex items-center space-x-2">
-                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                    <span class="text-sm text-green-500 dark:text-green-400">Live</span>
+                <!-- Effects Toggle (only visible during special dates) -->
+                <button id="effects-toggle" class="effects-toggle hidden" 
+                        aria-label="Toggle special effects" 
+                        aria-pressed="false"
+                        title="Toggle special effects">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 2a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 2zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 15zm8-5a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0118 10zM5.25 10.75a.75.75 0 000-1.5h-1.5a.75.75 0 000 1.5h1.5zm9.125-5.125a.75.75 0 01-.53 1.28l-1.061.354.354 1.06a.75.75 0 11-1.42.474l-.354-1.06-1.06.353a.75.75 0 11-.474-1.42l1.06-.353-.353-1.061a.75.75 0 011.42-.474l.354 1.06 1.06-.353a.75.75 0 01.95.53zm1.06 7.5a.75.75 0 01-.53 1.28l-1.061.354.354 1.06a.75.75 0 01-1.42.474l-.354-1.06-1.06.353a.75.75 0 01-.474-1.42l1.06-.353-.353-1.061a.75.75 0 011.42-.474l.354 1.06 1.06-.353a.75.75 0 01.95.53zm-9.56-1.28a.75.75 0 01.53 1.28l-1.061.354.354 1.06a.75.75 0 01-1.42.474l-.354-1.06-1.06.353a.75.75 0 11-.474-1.42l1.06-.353-.353-1.061a.75.75 0 111.42-.474l.354 1.06 1.06-.353z"/>
+                    </svg>
+                </button>
+                
+                <span class="text-sm text-gray-500 dark:text-gray-400">
+                    <span aria-hidden="true">Connected:</span> 
+                    <span id="user-count" aria-label="Connected users count" aria-live="polite">0</span>
+                </span>
+                <div class="flex items-center space-x-2" role="status" aria-label="Connection status">
+                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse" aria-hidden="true"></div>
+                    <span class="text-sm text-green-500 dark:text-green-400" aria-live="polite">Live</span>
                 </div>
             </div>
         </div>
     </header>
 
     <!-- The Main Content -->
-    <main class="container mx-auto p-2">
+    <main class="container mx-auto p-2" role="main" id="main-content">
         <div class="grid grid-cols-1 xl:grid-cols-5 gap-4">
 
             <!-- Canvas Section -->
-            <div class="xl:col-span-4">
+            <section class="xl:col-span-4" aria-labelledby="canvas-heading">
                 <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Canvas</h2>
+                        <h2 id="canvas-heading" class="text-xl font-semibold text-gray-900 dark:text-white">Canvas</h2>
                         <div class="flex items-center space-x-4">
-                            <button id="zoom-out" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">-</button>
-                            <span id="zoom-level" class="text-sm text-gray-600 dark:text-gray-400">100%</span>
-                            <button id="zoom-in" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">+</button>
-                            <button id="reset-view" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-sm text-white">Reset</button>
+                            <button id="zoom-out" 
+                                    aria-label="Zoom out" 
+                                    aria-controls="canvas" 
+                                    class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none">-</button>
+                            <span id="zoom-level" 
+                                  aria-live="polite" 
+                                  aria-label="Current zoom level" 
+                                  class="text-sm text-gray-600 dark:text-gray-400">100%</span>
+                            <button id="zoom-in" 
+                                    aria-label="Zoom in" 
+                                    aria-controls="canvas" 
+                                    class="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none">+</button>
+                            <button id="reset-view" 
+                                    aria-label="Reset canvas view to center" 
+                                    class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-sm text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">Reset</button>
+                            <button id="export-canvas" 
+                                    aria-label="Export canvas as PNG image" 
+                                    class="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm text-white flex items-center space-x-1 focus:ring-2 focus:ring-green-500 focus:outline-none">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                <span>Export PNG</span>
+                            </button>
                         </div>
                     </div>
                     
-                    <div class="canvas-container bg-white rounded overflow-hidden relative border border-gray-200 dark:border-gray-600" style="width: 100%; height: 80vh; min-height: 600px; max-height: 900px;">
-                        <canvas id="canvas" class="block" style="width: 100%; height: 100%;"></canvas>
+                    <div class="canvas-container bg-white rounded overflow-hidden relative border border-gray-200 dark:border-gray-600" 
+                         style="width: 100%; height: 80vh; min-height: 600px; max-height: 900px;"
+                         role="application"
+                         aria-label="Pixel art canvas. Use arrow keys to navigate, Enter or Space to place a pixel."
+                         id="main-canvas">
+                        <canvas id="canvas" 
+                                class="block" 
+                                style="width: 100%; height: 100%;"
+                                tabindex="0"
+                                role="img"
+                                aria-label="500x500 pixel collaborative canvas"></canvas>
                     </div>
                     
-                    <div class="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                        <p>Click to place pixels • Drag to pan • Use zoom controls or scroll wheel</p>
-                        <p>Canvas bounds: 0-499, 0-499 (500x500 pixels)</p>
-                        <p>Coordinates: <span id="cursor-coords" class="text-green-600 dark:text-green-400">0, 0</span></p>
-                        <p id="cooldown-status" class="text-green-600 dark:text-green-400 text-sm">Ready to place pixel</p>
+                    <div class="mt-3 text-sm text-gray-500 dark:text-gray-400" role="region" aria-label="Canvas controls help">
+                        <p id="canvas-help" aria-label="Canvas interaction instructions">
+                            <span aria-hidden="true">Click to place pixels • Drag to pan • Use zoom controls or scroll wheel</span>
+                            <span class="sr-only">Click or press Enter to place pixels. Drag to pan the canvas. Use zoom controls or scroll wheel to zoom. Press H for keyboard shortcuts.</span>
+                        </p>
+                        <p aria-label="Canvas dimensions">Canvas bounds: 0-499, 0-499 (500x500 pixels)</p>
+                        <p aria-label="Current position">Coordinates: <span id="cursor-coords" 
+                                             class="text-green-600 dark:text-green-400" 
+                                             aria-live="polite" 
+                                             aria-atomic="true">0, 0</span></p>
+                        <p id="cooldown-status" 
+                           class="text-green-600 dark:text-green-400 text-sm" 
+                           role="status" 
+                           aria-live="polite"
+                           aria-atomic="true">Ready to place pixel</p>
                     </div>
                 </div>
-            </div>
+                
+                <!-- Keyboard Controls Help (Visually Hidden by Default) -->
+                <div id="keyboard-help" class="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg hidden" role="region" aria-label="Keyboard controls">
+                    <h3 class="font-semibold mb-2">Keyboard Controls:</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        <div>
+                            <h4 class="font-medium mb-1">Canvas Navigation</h4>
+                            <ul class="space-y-1">
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">Arrow Keys</kbd> - Navigate canvas</li>
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">Enter/Space</kbd> - Place pixel</li>
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">C</kbd> - Center view</li>
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">H</kbd> - Toggle this help</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-medium mb-1">Zoom & Colors</h4>
+                            <ul class="space-y-1">
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">+/-</kbd> - Zoom in/out</li>
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">0</kbd> - Reset zoom</li>
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">1-9</kbd> - Select color</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-medium mb-1">Application Shortcuts</h4>
+                            <ul class="space-y-1">
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+E</kbd> - Export canvas</li>
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+S</kbd> - Open shop</li>
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+A</kbd> - View achievements</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-medium mb-1">General</h4>
+                            <ul class="space-y-1">
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">Tab</kbd> - Navigate UI elements</li>
+                                <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">Escape</kbd> - Exit keyboard mode/Close dialogs</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
             <!-- Sidebar -->
-            <div class="xl:col-span-1">
+            <aside class="xl:col-span-1" aria-label="Tools and information sidebar">
                 <!-- Color Palette -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Color Palette</h3>
-                    <div id="color-palette" class="grid grid-cols-4 gap-2">
+                <section class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 shadow-sm border border-gray-200 dark:border-gray-700" 
+                         id="color-palette" 
+                         aria-labelledby="palette-heading">
+                    <h3 id="palette-heading" class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Color Palette</h3>
+                    <div id="color-palette-grid" 
+                         class="grid grid-cols-4 gap-2"
+                         role="radiogroup"
+                         aria-label="Select a color for drawing">
                         <!-- Colors will be populated by JavaScript -->
                     </div>
                     <div class="mt-4">
-                        <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Selected Color:</label>
+                        <label for="selected-color" class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Selected Color:</label>
                         <div class="flex items-center space-x-2">
-                            <div id="selected-color" class="w-8 h-8 border-2 border-gray-300 dark:border-gray-600 rounded"></div>
-                            <span id="selected-color-hex" class="text-gray-900 dark:text-white">#000000</span>
+                            <div id="selected-color" 
+                                 class="w-8 h-8 border-2 border-gray-300 dark:border-gray-600 rounded"
+                                 role="img"
+                                 aria-label="Currently selected color"></div>
+                            <span id="selected-color-hex" 
+                                  class="text-gray-900 dark:text-white"
+                                  aria-live="polite"
+                                  aria-label="Selected color hex value">#000000</span>
                         </div>
                     </div>
-                </div>
+                </section>
 
                 <!-- Stats -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Stats</h3>
+                <section class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 shadow-sm border border-gray-200 dark:border-gray-700" 
+                         id="stats" 
+                         aria-labelledby="stats-heading">
+                    <h3 id="stats-heading" class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Statistics</h3>
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <span class="text-gray-500 dark:text-gray-400">Connected:</span>
-                            <span id="connected-count" class="text-gray-900 dark:text-white font-medium">0</span>
+                            <span id="connected-count" 
+                                  class="text-gray-900 dark:text-white font-medium"
+                                  aria-live="polite"
+                                  aria-label="Number of connected users">0</span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-500 dark:text-gray-400">Total Pixels:</span>
-                            <span id="total-pixels" class="text-gray-900 dark:text-white font-medium">0</span>
+                            <span id="total-pixels" 
+                                  class="text-gray-900 dark:text-white font-medium"
+                                  aria-live="polite"
+                                  aria-label="Total pixels placed on canvas">0</span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-500 dark:text-gray-400">Your Pixels:</span>
-                            <span id="user-pixels" class="text-gray-900 dark:text-white font-medium">0</span>
+                            <span id="user-pixels" 
+                                  class="text-gray-900 dark:text-white font-medium"
+                                  aria-live="polite"
+                                  aria-label="Number of pixels you have placed">0</span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-500 dark:text-gray-400">Canvas Size:</span>
@@ -146,22 +280,30 @@
                         <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-3">
                             <div class="text-center">
                                 <div class="text-gray-500 dark:text-gray-400 text-xs mb-1">Pixel Placement</div>
-                                <div id="cooldown-status-sidebar" class="text-green-600 dark:text-green-400 text-sm font-medium">Ready</div>
+                                <div id="cooldown-status-sidebar" 
+                                     class="text-green-600 dark:text-green-400 text-sm font-medium"
+                                     role="status"
+                                     aria-live="polite">Ready</div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
 
                 <!-- Paint Buckets Display -->
-                <div class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-4 mb-6 shadow-sm">
+                <section class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-4 mb-6 shadow-sm" 
+                         role="region" 
+                         aria-labelledby="paint-buckets-heading">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-2">
-                            <span class="text-2xl">🪣</span>
-                            <span class="text-white font-bold text-lg">Paint Buckets</span>
+                            <span class="text-2xl" aria-hidden="true">🪣</span>
+                            <h3 id="paint-buckets-heading" class="text-white font-bold text-lg">Paint Buckets</h3>
                         </div>
-                        <span id="paint-buckets-count" class="text-white font-bold text-2xl">0</span>
+                        <span id="paint-buckets-count" 
+                              class="text-white font-bold text-2xl"
+                              aria-live="polite"
+                              aria-label="Number of paint buckets">0</span>
                     </div>
-                </div>
+                </section>
 
                 <!-- Challenges -->
                 <div class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -204,24 +346,37 @@
                 </div>
 
                 <!-- Recent Activity -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Recent Activity</h3>
-                    <div id="activity-feed" class="space-y-2 text-sm max-h-64 overflow-y-auto">
+                <section class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700" 
+                         aria-labelledby="activity-heading">
+                    <h3 id="activity-heading" class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Recent Activity</h3>
+                    <div id="activity-feed" 
+                         class="space-y-2 text-sm max-h-64 overflow-y-auto"
+                         role="log"
+                         aria-label="Recent pixel placement activity"
+                         aria-live="polite"
+                         aria-relevant="additions">
                         <!-- Activity items here will be dynamically called -->
                     </div>
-                </div>
-            </div>
+                </section>
+            </aside>
         </div>
     </main>
     
     <!-- Shop Modal -->
-    <div id="shop-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div id="shop-modal" 
+         class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="shop-modal-title"
+         aria-hidden="true">
         <div class="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <div class="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Shop</h2>
-                    <button id="close-shop" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                        <span class="text-2xl">&times;</span>
+                    <h2 id="shop-modal-title" class="text-2xl font-bold text-gray-900 dark:text-white">Shop</h2>
+                    <button id="close-shop" 
+                            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded"
+                            aria-label="Close shop dialog">
+                        <span class="text-2xl" aria-hidden="true">&times;</span>
                     </button>
                 </div>
                 <div class="mt-2 flex items-center space-x-2">
@@ -238,13 +393,20 @@
     </div>
     
     <!-- Achievements Modal -->
-    <div id="achievements-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div id="achievements-modal" 
+         class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="achievements-modal-title"
+         aria-hidden="true">
         <div class="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <div class="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Achievements</h2>
-                    <button id="close-achievements" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                        <span class="text-2xl">&times;</span>
+                    <h2 id="achievements-modal-title" class="text-2xl font-bold text-gray-900 dark:text-white">Achievements</h2>
+                    <button id="close-achievements" 
+                            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded"
+                            aria-label="Close achievements dialog">
+                        <span class="text-2xl" aria-hidden="true">&times;</span>
                     </button>
                 </div>
                 <div class="mt-2">
@@ -260,7 +422,12 @@
     </div>
     
     <!-- Achievement Notification -->
-    <div id="achievement-notification" class="fixed top-20 right-4 transform translate-x-full transition-transform duration-500 z-50">
+    <div id="achievement-notification" 
+         class="fixed top-20 right-4 transform translate-x-full transition-transform duration-500 z-50"
+         role="alert"
+         aria-live="assertive"
+         aria-atomic="true"
+         aria-hidden="true">
         <div class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-4 shadow-lg max-w-sm">
             <div class="flex items-center space-x-3">
                 <span id="achievement-icon" class="text-3xl">🏆</span>
@@ -273,6 +440,8 @@
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/mural.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/performance-monitor.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/accessibility.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/mural.js') }}" defer></script>
 </body>
 </html>

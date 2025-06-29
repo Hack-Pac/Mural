@@ -5,6 +5,13 @@ class Config:
     # Flask configuration
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-change-in-production'
     
+    # Security configuration
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = None  # CSRF token doesn't expire
+    
     # SocketIO configuration
     SOCKETIO_ASYNC_MODE = 'threading'
     
@@ -20,6 +27,7 @@ class Config:
     
     # Session configuration
     PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
+    SESSION_TYPE = 'filesystem'  # Use server-side sessions
     
     # CORS settings
     CORS_ORIGINS = ["*"]  # Change this in production to specific domains
@@ -44,7 +52,12 @@ class ProductionConfig(Config):
     
     # Production-specific settings
     RATE_LIMIT_PIXELS_PER_MINUTE = 10  # Stricter rate limiting
-    CORS_ORIGINS = []  # Add your production domains
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []  # Whitelist specific domains
+    
+    # Enhanced security for production
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Strict'
 
 # Configuration dictionary
 config = {

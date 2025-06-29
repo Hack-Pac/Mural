@@ -1,11 +1,97 @@
 /* Custom CSS for Mural Application */
 
-/* Canvas container styles */
+/* ====================== Accessibility Styles ====================== */
+
+/* Screen reader only content */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Make sr-only content visible when focused */
+.sr-only:focus,
+.sr-only.focus:not(:focus-visible) {
+    position: absolute;
+    width: auto;
+    height: auto;
+    padding: 0.75rem 1rem;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    z-index: 50;
+}
+
+/* Enhanced focus indicators */
+*:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Skip links styling */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: #3b82f6;
+    color: white;
+    padding: 8px;
+    text-decoration: none;
+    border-radius: 0 0 4px 0;
+    z-index: 100;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .canvas-container {
+        border-width: 3px;
+    }
+    
+    button {
+        border: 2px solid currentColor;
+    }
+    
+    .color-picker {
+        border-width: 3px;
+    }
+    
+    .color-picker.selected {
+        border-width: 4px;
+        box-shadow: 0 0 0 4px #3b82f6;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Canvas container styles - Optimized */
 .canvas-container {
     position: relative;
     background: #f0f0f0;
     border: 2px solid #e0e0e0;
     overflow: hidden; /* Ensure no canvas overflow is visible */
+    contain: strict; /* Contain layout, style, and paint for performance */
+    will-change: transform; /* Optimize for transforms */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
 }
 
 #canvas {
@@ -13,10 +99,21 @@
     cursor: crosshair;
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
     image-rendering: crisp-edges;
+    -ms-interpolation-mode: nearest-neighbor; /* IE */
+    transform: translateZ(0); /* Force GPU acceleration */
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden; /* Reduce repaints */
+    -webkit-backface-visibility: hidden;
+    touch-action: none; /* Prevent default touch behaviors */
 }
 
-/* Activity feed styling */
+/* Activity feed styling - Optimized for performance */
+#activity-feed {
+    contain: layout style; /* CSS containment for better performance */
+}
+
 #activity-feed::-webkit-scrollbar {
     width: 6px;
 }
@@ -33,11 +130,16 @@
 /* Color picker hover effects */
 .color-picker {
     transition: all 0.2s ease-in-out;
+    -webkit-transition: all 0.2s ease-in-out;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .color-picker:hover {
     transform: scale(1.1);
+    -webkit-transform: scale(1.1);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    -webkit-box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .color-picker.selected {
@@ -48,14 +150,31 @@
 /* Button hover effects */
 button {
     transition: all 0.2s ease-in-out;
+    -webkit-transition: all 0.2s ease-in-out;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 button:hover {
     transform: translateY(-1px);
+    -webkit-transform: translateY(-1px);
 }
 
 /* Loading animation */
 @keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@-webkit-keyframes pulse {
     0%, 100% {
         opacity: 1;
     }
@@ -120,6 +239,11 @@ button:hover {
     100% { transform: rotate(360deg); }
 }
 
+@-webkit-keyframes spin {
+    0% { -webkit-transform: rotate(0deg); }
+    100% { -webkit-transform: rotate(360deg); }
+}
+
 /* Improved button states */
 button:disabled {
     opacity: 0.5;
@@ -136,6 +260,12 @@ button:active {
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-5px); }
     75% { transform: translateX(5px); }
+}
+
+@-webkit-keyframes shake {
+    0%, 100% { -webkit-transform: translateX(0); }
+    25% { -webkit-transform: translateX(-5px); }
+    75% { -webkit-transform: translateX(5px); }
 }
 
 .shake {
@@ -160,8 +290,8 @@ button:active {
     }
 }
 
-/* Theme transition */
-* {
+/* Theme transition - Only for specific elements to reduce repaints */
+.theme-transition {
     transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
@@ -283,6 +413,170 @@ html:not(.dark):not(.coffee) .theme-toggle:hover {
 
 .coffee .bg-blue-600:hover {
     background-color: #8b4513 !important;
+}
+
+/* Christmas theme global styles */
+.christmas {
+    background-color: #0a1225 !important;
+    color: #e6f3ff !important;
+}
+
+.christmas header {
+    background-color: #142444 !important;
+    border-color: #2a4066 !important;
+}
+
+.christmas h1 {
+    color: #ff4444 !important;
+}
+
+.christmas .bg-white,
+.christmas [class*="bg-white"] {
+    background-color: #fef6e4 !important;
+}
+
+.christmas .text-gray-900,
+.christmas [class*="text-gray-900"] {
+    color: #0a1225 !important;
+}
+
+.christmas .text-gray-500,
+.christmas [class*="text-gray-500"] {
+    color: #4a5568 !important;
+}
+
+.christmas .text-gray-600,
+.christmas [class*="text-gray-600"] {
+    color: #2d3748 !important;
+}
+
+.christmas .text-gray-700,
+.christmas [class*="text-gray-700"] {
+    color: #1a202c !important;
+}
+
+.christmas .border-gray-200,
+.christmas [class*="border-gray-200"] {
+    border-color: #cbd5e0 !important;
+}
+
+.christmas .border-gray-300,
+.christmas [class*="border-gray-300"] {
+    border-color: #a0aec0 !important;
+}
+
+.christmas .bg-gray-100,
+.christmas [class*="bg-gray-100"] {
+    background-color: #2a4066 !important;
+}
+
+.christmas .bg-gray-100:hover,
+.christmas [class*="bg-gray-100"]:hover {
+    background-color: #3a5a99 !important;
+}
+
+.christmas .bg-blue-600 {
+    background-color: #ff4444 !important;
+}
+
+.christmas .bg-blue-600:hover {
+    background-color: #cc0000 !important;
+}
+
+.christmas .bg-green-600 {
+    background-color: #2d5a2d !important;
+}
+
+.christmas .bg-green-600:hover,
+.christmas .bg-green-500 {
+    background-color: #3d7a3d !important;
+}
+
+.christmas .bg-gray-800 {
+    background-color: #142444 !important;
+}
+
+.christmas .border-gray-700 {
+    border-color: #2a4066 !important;
+}
+
+.christmas .text-white {
+    color: #e6f3ff !important;
+}
+
+.christmas .text-blue-600,
+.christmas .text-blue-400 {
+    color: #66bb66 !important;
+}
+
+/* Christmas theme toggle button styles */
+.christmas .theme-toggle {
+    border-color: #2a4066;
+    color: #e6f3ff;
+}
+
+.christmas .theme-toggle:hover {
+    background-color: #2a4066;
+}
+
+/* Snow effect styles */
+@keyframes snowfall {
+    0% {
+        transform: translateY(-100vh) translateX(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100vh) translateX(100px);
+        opacity: 0.3;
+    }
+}
+
+.snowflake {
+    position: fixed;
+    top: -10px;
+    z-index: 9999;
+    color: white;
+    user-select: none;
+    cursor: default;
+    animation: snowfall linear infinite;
+    pointer-events: none;
+}
+
+.snow-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 100;
+}
+
+/* Effects toggle button */
+.effects-toggle {
+    background: transparent;
+    border: 1px solid;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.effects-toggle:hover {
+    transform: scale(1.05);
+}
+
+.christmas .effects-toggle {
+    border-color: #2a4066;
+    color: #e6f3ff;
+}
+
+.christmas .effects-toggle:hover {
+    background-color: #2a4066;
 }
 
 
