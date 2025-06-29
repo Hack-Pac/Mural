@@ -8,6 +8,9 @@ from config import config
 from dotenv import load_dotenv
 from cache_service import MuralCache, cache
 import logging
+from user_data import user_data_manager
+from challenges import challenge_manager
+from shop import shop
 
 load_dotenv()
 
@@ -27,12 +30,13 @@ socketio = SocketIO(app,
                    engineio_logger=True)
 
 canvas_data = {}
-user_cooldowns = {} 
+user_cooldowns = {}
+connected_users = set() 
 CANVAS_WIDTH = app.config['CANVAS_WIDTH']
 CANVAS_HEIGHT = app.config['CANVAS_HEIGHT']
 
 config_obj = config[config_name]
-PIXEL_COOLDOWN = config_obj.PIXEL_COOLDOWN
+PIXEL_COOLDOWN = app.config['PIXEL_COOLDOWN']
 
 # Debug logging for cooldown configuration
 logger.info(f"Environment: {config_name}")
@@ -44,6 +48,10 @@ def index():
     if 'user_id' not in session:
         session['user_id'] = str(uuid.uuid4())
     return render_template('index.html')
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
 
 @app.route('/api/canvas')
 def get_canvas():
@@ -94,6 +102,106 @@ def get_cooldown():
     
     return jsonify({'cooldown_remaining': 0})
 
+@app.route('/api/connected-count')
+def get_connected_count():
+    """Get the current number of connected users"""
+    return jsonify({'count': len(connected_users)})
+
+@app.route('/api/user-progress')
+def get_user_progress():
+    """Get user's progress, challenges, and achievements"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    user_data = user_data_manager.get_user_data(user_id)
+    
+    # Check for new achievements
+    unlocked_achievements = challenge_manager.check_achievements(user_data)
+    new_achievements = []
+    for achievement_id, achievement_data in unlocked_achievements:
+        if user_data_manager.unlock_achievement(user_id, achievement_id):
+            # Award paint buckets for new achievement
+            user_data_manager.add_paint_buckets(user_id, achievement_data['reward'])
+            new_achievements.append({
+                'id': achievement_id,
+                **achievement_data
+            })
+    
+    # Get or generate active challenges
+    if not user_data['active_challenges'] or len(user_data['active_challenges']) == 0:
+        # Generate new challenges
+        new_challenges = challenge_manager.generate_challenges(
+            user_data['challenges_completed'],
+            user_data.get('completed_challenge_ids', [])
+        )
+        challenge_ids = [c.id for c in new_challenges]
+        user_data_manager.set_active_challenges(user_id, challenge_ids)
+        
+        # Store challenge details in user data for persistence
+        if 'challenge_details' not in user_data:
+            user_data['challenge_details'] = {}
+        for challenge in new_challenges:
+            challenge_dict = challenge.to_dict()
+            user_data['challenge_details'][challenge.id] = challenge_dict
+            # Also update the user data directly
+            user_data_manager.user_data[user_id]['challenge_details'][challenge.id] = challenge_dict
+        user_data_manager.save_data()
+        
+        active_challenges = []
+        for challenge in new_challenges:
+            challenge_dict = challenge.to_dict()
+            challenge_dict['progress'] = 0
+            active_challenges.append(challenge_dict)
+    else:
+        # Return existing challenges with progress
+        active_challenges = []
+        for challenge_id in user_data['active_challenges']:
+            progress = user_data['challenge_progress'].get(challenge_id, 0)
+            
+            # Get stored challenge details
+            if 'challenge_details' in user_data and challenge_id in user_data['challenge_details']:
+                challenge_data = user_data['challenge_details'][challenge_id].copy()
+                challenge_data['progress'] = progress
+            else:
+                # Fallback if details not stored - regenerate based on current progress
+                logger.warning(f"Challenge {challenge_id} missing details, regenerating...")
+                # Generate a single challenge as fallback
+                temp_challenges = challenge_manager.generate_challenges(
+                    user_data['challenges_completed'], 
+                    [challenge_id]
+                )
+                if temp_challenges:
+                    challenge_data = temp_challenges[0].to_dict()
+                    challenge_data['progress'] = progress
+                    # Store for future use
+                    if 'challenge_details' not in user_data:
+                        user_data['challenge_details'] = {}
+                    user_data['challenge_details'][challenge_id] = challenge_data
+                    user_data_manager.save_data()
+                else:
+                    # Last resort fallback
+                    challenge_data = {
+                        'id': challenge_id,
+                        'name': 'Mystery Challenge',
+                        'description': 'Complete the mystery challenge',
+                        'requirement': 10,
+                        'reward': 50,
+                        'progress': progress
+                    }
+            active_challenges.append(challenge_data)
+    
+    return jsonify({
+        'paint_buckets': user_data['paint_buckets'],
+        'total_pixels': user_data['total_pixels_placed'],
+        'challenges_completed': user_data['challenges_completed'],
+        'achievements': user_data['achievements'],
+        'active_challenges': active_challenges,
+        'new_achievements': new_achievements,
+        'statistics': user_data['statistics'],
+        'purchases': user_data['purchases']
+    })
+
 @app.route('/api/user-stats')
 def get_user_stats():
     """Get user's pixel statistics with caching"""
@@ -142,6 +250,131 @@ def get_user_stats():
     return jsonify({
         'user_pixels': user_pixels,
         'total_pixels': total_pixels
+    })
+
+@app.route('/api/shop')
+def get_shop_items():
+    """Get available shop items for the user"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'items': shop.get_available_items({})})
+    
+    user_data = user_data_manager.get_user_data(user_id)
+    available_items = shop.get_available_items(user_data['purchases'])
+    
+    return jsonify({
+        'items': available_items,
+        'paint_buckets': user_data['paint_buckets']
+    })
+
+@app.route('/api/shop/purchase', methods=['POST'])
+def purchase_item():
+    """Purchase an item from the shop"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    data = request.get_json()
+    item_id = data.get('item_id')
+    
+    if not item_id:
+        return jsonify({'error': 'No item specified'}), 400
+    
+    user_data = user_data_manager.get_user_data(user_id)
+    
+    # Check if purchase is valid
+    error = shop.purchase_item(item_id, user_data)
+    if error:
+        return jsonify({'error': error}), 400
+    
+    # Deduct cost and apply purchase
+    item = shop.items[item_id]
+    if not user_data_manager.spend_paint_buckets(user_id, item.cost):
+        return jsonify({'error': 'Insufficient paint buckets'}), 400
+    
+    # Apply the purchase effects
+    updated_data = shop.apply_purchase(item_id, user_data)
+    user_data_manager.user_data[user_id] = updated_data
+    user_data_manager.save_data()
+    
+    return jsonify({
+        'success': True,
+        'paint_buckets': updated_data['paint_buckets'],
+        'purchase': item.to_dict()
+    })
+
+@app.route('/api/complete-challenges', methods=['POST'])
+def complete_challenges():
+    """Complete finished challenges and get new ones"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    data = request.get_json()
+    completed_ids = data.get('completed_challenge_ids', [])
+    
+    if not completed_ids:
+        return jsonify({'error': 'No challenges to complete'}), 400
+    
+    user_data = user_data_manager.get_user_data(user_id)
+    total_reward = 0
+    
+    # Complete each challenge and award rewards
+    for challenge_id in completed_ids:
+        if challenge_id in user_data['active_challenges']:
+            # Get challenge reward from stored details
+            challenge_reward = 50  # Default
+            if 'challenge_details' in user_data and challenge_id in user_data['challenge_details']:
+                challenge_reward = user_data['challenge_details'][challenge_id].get('reward', 50)
+            
+            # Award paint buckets
+            total_reward += challenge_reward
+            user_data_manager.complete_challenge(user_id, challenge_id)
+    
+    # Add total rewards
+    if total_reward > 0:
+        user_data_manager.add_paint_buckets(user_id, total_reward)
+    
+    # Generate new challenges if all are completed
+    user_data = user_data_manager.get_user_data(user_id)
+    if len(user_data['active_challenges']) == 0:
+        new_challenges = challenge_manager.generate_challenges(
+            user_data['challenges_completed']
+        )
+        challenge_ids = [c.id for c in new_challenges]
+        user_data_manager.set_active_challenges(user_id, challenge_ids)
+        
+        # Store new challenge details
+        if 'challenge_details' not in user_data:
+            user_data['challenge_details'] = {}
+        for challenge in new_challenges:
+            challenge_dict = challenge.to_dict()
+            user_data['challenge_details'][challenge.id] = challenge_dict
+            # Also update the user data directly
+            user_data_manager.user_data[user_id]['challenge_details'][challenge.id] = challenge_dict
+        user_data_manager.save_data()
+        
+        # Return full challenge details with initial progress
+        active_challenges = []
+        for challenge in new_challenges:
+            challenge_dict = challenge.to_dict()
+            challenge_dict['progress'] = 0
+            active_challenges.append(challenge_dict)
+    else:
+        # Return remaining challenges with details
+        active_challenges = []
+        for challenge_id in user_data['active_challenges']:
+            if 'challenge_details' in user_data and challenge_id in user_data['challenge_details']:
+                challenge_data = user_data['challenge_details'][challenge_id].copy()
+                challenge_data['progress'] = user_data['challenge_progress'].get(challenge_id, 0)
+                active_challenges.append(challenge_data)
+    
+    return jsonify({
+        'success': True,
+        'total_reward': total_reward,
+        'paint_buckets': user_data['paint_buckets'],
+        'active_challenges': active_challenges,
+        'challenges_completed': user_data['challenges_completed']
     })
 
 @app.route('/api/place-pixel', methods=['POST'])
@@ -198,9 +431,17 @@ def place_pixel():
         'user_id': user_id
     }
     
+    # Get user data for upgrades
+    user_data = user_data_manager.get_user_data(user_id)
+    
+    # Apply cooldown reduction from upgrades
+    base_cooldown = PIXEL_COOLDOWN
+    cooldown_reduction = user_data['purchases'].get('cooldown_reduction', 0)
+    actual_cooldown = int(base_cooldown * (1 - cooldown_reduction / 100))
+    
     # Update cooldowns
-    logger.info(f"Setting cooldown for user {user_id} to {PIXEL_COOLDOWN} seconds")
-    cooldown_time = datetime.now() + timedelta(seconds=PIXEL_COOLDOWN)
+    logger.info(f"Setting cooldown for user {user_id} to {actual_cooldown} seconds (base: {base_cooldown}, reduction: {cooldown_reduction}%)")
+    cooldown_time = datetime.now() + timedelta(seconds=actual_cooldown)
     user_cooldowns[user_id] = cooldown_time
     
     try:
@@ -232,6 +473,28 @@ def place_pixel():
     # Save canvas data to file for persistence
     save_canvas_to_file()
     
+    # Update user progress
+    user_data_manager.increment_pixels_placed(user_id)
+    
+    # Award paint buckets for placing pixels (base reward)
+    base_reward = 1
+    
+    # Check for active double rewards boost
+    active_boosts = user_data.get('active_boosts', {})
+    if 'double_rewards' in active_boosts:
+        expires = datetime.fromisoformat(active_boosts['double_rewards']['expires'])
+        if expires > datetime.now():
+            base_reward *= 2
+    
+    paint_buckets_earned = user_data_manager.add_paint_buckets(user_id, base_reward)
+    
+    # Check challenge progress
+    # This is simplified - in production you'd have more sophisticated challenge tracking
+    for challenge_id in user_data['active_challenges']:
+        if 'place_pixels' in challenge_id:
+            current_progress = user_data['challenge_progress'].get(challenge_id, 0) + 1
+            user_data_manager.update_challenge_progress(user_id, challenge_id, current_progress)
+    
     socketio.emit('pixel_placed', {
         'x': x,
         'y': y,
@@ -241,17 +504,27 @@ def place_pixel():
     
     return jsonify({
         'success': True,
-        'cooldown_remaining': PIXEL_COOLDOWN  # This is the total cooldown time in seconds
+        'cooldown_remaining': actual_cooldown,
+        'paint_buckets_earned': base_reward,
+        'total_paint_buckets': paint_buckets_earned
     })
 
 @socketio.on('connect')
 def handle_connect():
     print('Client connected')
+    connected_users.add(request.sid)
     emit('canvas_update', canvas_data)
+    # Emit the updated user count to all connected clients
+    socketio.emit('user_count', {'count': len(connected_users)})
+    logger.info(f"User connected. Total users: {len(connected_users)}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
     print('Client disconnected')
+    connected_users.discard(request.sid)
+    # Emit the updated user count to all connected clients
+    socketio.emit('user_count', {'count': len(connected_users)})
+    logger.info(f"User disconnected. Total users: {len(connected_users)}")
 
 def cleanup_cooldowns():
     """Remove expired cooldowns to prevent memory leaks"""

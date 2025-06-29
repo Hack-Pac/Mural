@@ -34,7 +34,7 @@ class DevelopmentConfig(Config):
     DEBUG = True
     HOST = '0.0.0.0'
     PORT = 5000
-    PIXEL_COOLDOWN = int(os.environ.get('PIXEL_COOLDOWN', 60))  # 1 minute for development
+    PIXEL_COOLDOWN = int(os.environ.get('PIXEL_COOLDOWN', 30))  # 30 seconds for development
 
 class ProductionConfig(Config):
     DEBUG = False

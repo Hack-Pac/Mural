@@ -128,6 +128,10 @@
                     <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Stats</h3>
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Connected:</span>
+                            <span id="connected-count" class="text-gray-900 dark:text-white font-medium">0</span>
+                        </div>
+                        <div class="flex justify-between">
                             <span class="text-gray-500 dark:text-gray-400">Total Pixels:</span>
                             <span id="total-pixels" class="text-gray-900 dark:text-white font-medium">0</span>
                         </div>
@@ -148,16 +152,127 @@
                     </div>
                 </div>
 
+                <!-- Paint Buckets Display -->
+                <div class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-4 mb-6 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-2xl">🪣</span>
+                            <span class="text-white font-bold text-lg">Paint Buckets</span>
+                        </div>
+                        <span id="paint-buckets-count" class="text-white font-bold text-2xl">0</span>
+                    </div>
+                </div>
+
+                <!-- Challenges -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Challenges</h3>
+                        <button id="refresh-challenges" class="text-sm text-blue-600 dark:text-blue-400 hover:underline hidden">Refresh</button>
+                    </div>
+                    <div id="challenges-list" class="space-y-3">
+                        <!-- Challenges will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Achievements -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Achievements</h3>
+                        <span id="achievements-count" class="text-sm text-gray-500 dark:text-gray-400">0/0</span>
+                    </div>
+                    <div id="achievements-preview" class="grid grid-cols-6 gap-2 mb-3">
+                        <!-- Achievement badges preview -->
+                    </div>
+                    <button id="view-all-achievements" class="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline">View All</button>
+                </div>
+
+                <!-- Shop -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Shop</h3>
+                        <button id="open-shop" class="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm text-white">Browse</button>
+                    </div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400">
+                        <p>Spend your paint buckets on:</p>
+                        <ul class="mt-2 space-y-1">
+                            <li>• Bigger brushes</li>
+                            <li>• Faster cooldowns</li>
+                            <li>• Special colors</li>
+                            <li>• And more!</li>
+                        </ul>
+                    </div>
+                </div>
+
                 <!-- Recent Activity -->
                 <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
                     <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Recent Activity</h3>
-                    <div id="actwivity-feed" class="space-y-2 text-sm max-h-64 overflo-y-auto">
+                    <div id="activity-feed" class="space-y-2 text-sm max-h-64 overflow-y-auto">
                         <!-- Activity items here will be dynamically called -->
                     </div>
                 </div>
             </div>
         </div>
     </main>
-    <script src="{{ url_for('static, filename='js/mural.js''') }}"></script>
+    
+    <!-- Shop Modal -->
+    <div id="shop-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Shop</h2>
+                    <button id="close-shop" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <span class="text-2xl">&times;</span>
+                    </button>
+                </div>
+                <div class="mt-2 flex items-center space-x-2">
+                    <span class="text-xl">🪣</span>
+                    <span class="text-lg text-gray-700 dark:text-gray-300">Paint Buckets: <span id="shop-paint-buckets" class="font-bold text-orange-500">0</span></span>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                <div id="shop-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Shop items will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Achievements Modal -->
+    <div id="achievements-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Achievements</h2>
+                    <button id="close-achievements" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <span class="text-2xl">&times;</span>
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <span class="text-lg text-gray-700 dark:text-gray-300">Progress: <span id="achievements-progress" class="font-bold">0/0</span></span>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                <div id="achievements-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <!-- Achievements will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Achievement Notification -->
+    <div id="achievement-notification" class="fixed top-20 right-4 transform translate-x-full transition-transform duration-500 z-50">
+        <div class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-4 shadow-lg max-w-sm">
+            <div class="flex items-center space-x-3">
+                <span id="achievement-icon" class="text-3xl">🏆</span>
+                <div>
+                    <h4 class="text-white font-bold">Achievement Unlocked!</h4>
+                    <p id="achievement-name" class="text-white text-sm"></p>
+                    <p id="achievement-reward" class="text-white text-xs mt-1"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/mural.js') }}"></script>
 </body>
 </html>

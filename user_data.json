@@ -1,0 +1,56 @@
+{
+  "ae6d8979-a19f-486e-877a-6443fe95db83": {
+    "paint_buckets": 100,
+    "total_pixels_placed": 0,
+    "challenges_completed": 0,
+    "achievements": [],
+    "active_challenges": [
+      "beginner_daily_pixel_8464",
+      "beginner_place_in_area_8313",
+      "beginner_place_pixels_6336"
+    ],
+    "challenge_progress": {
+      "beginner_daily_pixel_8464": 0,
+      "beginner_place_in_area_8313": 0,
+      "beginner_place_pixels_6336": 0
+    },
+    "challenge_details": {
+      "beginner_daily_pixel_8464": {
+        "id": "beginner_daily_pixel_8464",
+        "name": "Daily Painter",
+        "description": "Place at least 1 pixel today",
+        "requirement": 1,
+        "reward": 5,
+        "type": "daily_pixel"
+      },
+      "beginner_place_in_area_8313": {
+        "id": "beginner_place_in_area_8313",
+        "name": "Local Artist",
+        "description": "Place 5 pixels in a 10x10 area",
+        "requirement": 5,
+        "reward": 20,
+        "type": "place_in_area"
+      },
+      "beginner_place_pixels_6336": {
+        "id": "beginner_place_pixels_6336",
+        "name": "First Steps",
+        "description": "Place 5 pixels",
+        "requirement": 5,
+        "reward": 10,
+        "type": "place_pixels"
+      }
+    },
+    "purchases": {
+      "brush_size": 1,
+      "cooldown_reduction": 0,
+      "special_colors_unlocked": false
+    },
+    "statistics": {
+      "first_pixel_time": null,
+      "last_pixel_time": null,
+      "favorite_color": null,
+      "streak_days": 0,
+      "last_active_date": null
+    }
+  }
+}
