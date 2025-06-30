@@ -5,7 +5,13 @@
       "Bash(grep:*)",
       "Bash(find:*)",
       "Bash(touch:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(/dev/null)",
+      "Bash(sed:*)",
+      "Bash(pkill:*)",
+      "Bash(true)"
     ],
     "deny": []
   }

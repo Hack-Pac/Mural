@@ -1,5 +1,4 @@
 // Accessibility enhancements for Mural application
-
 class AccessibilityManager {
     constructor(mural) {
         this.mural = mural;
@@ -7,11 +6,10 @@ class AccessibilityManager {
         this.cursorY = 250;
         this.keyboardMode = false;
         this.helpVisible = false;
-        
         // Initialize accessibility features
         this.init();
     }
-    
+
     init() {
         this.setupKeyboardNavigation();
         this.setupAnnouncements();
@@ -20,15 +18,13 @@ class AccessibilityManager {
         this.setupModalAccessibility();
         this.setupLiveRegions();
     }
-    
+
     // Keyboard navigation for canvas
     setupKeyboardNavigation() {
         const canvas = document.getElementById('canvas');
-        
         // Add keyboard event listeners
         canvas.addEventListener('keydown', (e) => {
             this.keyboardMode = true;
-            
             switch(e.key) {
                 // Arrow keys for navigation
                 case 'ArrowUp':
@@ -47,7 +43,7 @@ class AccessibilityManager {
                     e.preventDefault();
                     this.moveCursor(1, 0);
                     break;
-                    
+
                 // Enter or Space to place pixel
                 case 'Enter':
                 case ' ':
@@ -82,7 +78,7 @@ class AccessibilityManager {
                     e.preventDefault();
                     document.getElementById('reset-view').click();
                     break;
-                    
+
                 // Center view
                 case 'c':
                 case 'C':
@@ -96,7 +92,6 @@ class AccessibilityManager {
                     e.preventDefault();
                     this.toggleHelp();
                     break;
-                    
                 // Export canvas
                 case 'e':
                 case 'E':
@@ -106,7 +101,7 @@ class AccessibilityManager {
                         this.announce('Exporting canvas as PNG');
                     }
                     break;
-                    
+
                 // Open shop
                 case 's':
                 case 'S':
@@ -130,28 +125,24 @@ class AccessibilityManager {
                     break;
             }
         });
-        
         // Track when canvas loses focus
         canvas.addEventListener('blur', () => {
             this.keyboardMode = false;
         });
     }
-    
+
     moveCursor(dx, dy) {
         // Calculate new position
         let newX = this.cursorX + dx;
         let newY = this.cursorY + dy;
-        
         // Clamp to canvas bounds
         newX = Math.max(0, Math.min(499, newX));
         newY = Math.max(0, Math.min(499, newY));
-        
         // Update cursor position
         this.cursorX = newX;
         this.cursorY = newY;
         // Update coordinate display
         document.getElementById('cursor-coords').textContent = `${newX}, ${newY}`;
-        
         // Announce position periodically
         if ((newX % 10 === 0 && dx !== 0) || (newY % 10 === 0 && dy !== 0)) {
             this.announce(`Position ${newX}, ${newY}`, 'polite');
@@ -161,7 +152,6 @@ class AccessibilityManager {
             this.drawCursorIndicator();
         }
     }
-    
     drawCursorIndicator() {
         // Draw a visual cursor indicator on the canvas
         const ctx = this.mural.ctx;
@@ -179,7 +169,7 @@ class AccessibilityManager {
         ctx.strokeRect(screenX, screenY, zoom, zoom);
         // Restore context
         ctx.restore();
-        
+
         // Request redraw
         this.mural.needsRedraw = true;
     }
@@ -187,7 +177,6 @@ class AccessibilityManager {
         this.mural.placePixel(this.cursorX, this.cursorY, this.mural.selectedColor);
         this.announce(`Placed ${this.getColorName(this.mural.selectedColor)} pixel at ${this.cursorX}, ${this.cursorY}`);
     }
-    
     selectColorByNumber(num) {
         const colors = document.querySelectorAll('.color-picker');
         if (num > 0 && num <= colors.length) {
@@ -195,7 +184,6 @@ class AccessibilityManager {
             this.announce(`Selected color ${num}: ${this.getColorName(this.mural.selectedColor)}`);
         }
     }
-    
     exitKeyboardMode() {
         this.keyboardMode = false;
         this.announce('Exited keyboard mode');
@@ -223,7 +211,7 @@ class AccessibilityManager {
             politeAnnouncer.className = 'sr-only';
             document.body.appendChild(politeAnnouncer);
         }
-        
+
         if (!document.getElementById('sr-alerts')) {
             const assertiveAnnouncer = document.createElement('div');
             assertiveAnnouncer.id = 'sr-alerts';
@@ -233,15 +221,14 @@ class AccessibilityManager {
             document.body.appendChild(assertiveAnnouncer);
         }
     }
-    
+
     announce(message, priority = 'polite') {
-        const announcer = priority === 'assertive' 
+        const announcer = priority === 'assertive'
             ? document.getElementById('sr-alerts')
             : document.getElementById('sr-announcements');
         if (announcer) {
             // Clear previous announcement
             announcer.textContent = '';
-            
             // Set new announcement after a brief delay
             setTimeout(() => {
                 announcer.textContent = message;
@@ -264,11 +251,11 @@ class AccessibilityManager {
         const focusableElements = modal.querySelectorAll(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
-        
+
         if (focusableElements.length === 0) return;
         const firstFocusable = focusableElements[0];
         const lastFocusable = focusableElements[focusableElements.length - 1];
-        
+
         modal.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
                 if (e.shiftKey) {
@@ -285,13 +272,12 @@ class AccessibilityManager {
                     }
                 }
             }
-            
+
             if (e.key === 'Escape') {
                 this.closeModal(modal);
             }
         });
     }
-    
     openModal(modal) {
         this.lastFocusedElement = document.activeElement;
         modal.classList.remove('hidden');
@@ -305,28 +291,26 @@ class AccessibilityManager {
         }
         this.announce(`${modal.getAttribute('aria-labelledby')} dialog opened`);
     }
-    
     closeModal(modal) {
         modal.classList.add('hidden');
         modal.setAttribute('aria-hidden', 'true');
-        
+
         // Restore focus
         if (this.lastFocusedElement) {
             this.lastFocusedElement.focus();
         }
-        
         this.announce('Dialog closed');
     }
     // Color palette accessibility
     setupColorPaletteAccessibility() {
         const palette = document.getElementById('color-palette-grid');
         if (!palette) return;
-        
+
         // Make color selection work with keyboard
         palette.addEventListener('keydown', (e) => {
             const colors = Array.from(palette.querySelectorAll('.color-picker'));
             const currentIndex = colors.findIndex(el => el === document.activeElement);
-            
+
             let newIndex = currentIndex;
             switch(e.key) {
                 case 'ArrowRight':
@@ -345,21 +329,18 @@ class AccessibilityManager {
                     if (newIndex < 0) newIndex = currentIndex;
                     break;
             }
-            
             if (newIndex !== currentIndex && colors[newIndex]) {
                 e.preventDefault();
                 colors[newIndex].focus();
             }
         });
     }
-    
     // Modal accessibility
     setupModalAccessibility() {
         // Shop modal
         const shopButton = document.getElementById('open-shop');
         const shopModal = document.getElementById('shop-modal');
         const closeShop = document.getElementById('close-shop');
-        
         if (shopButton && shopModal) {
             shopButton.addEventListener('click', () => this.openModal(shopModal));
             closeShop.addEventListener('click', () => this.closeModal(shopModal));
@@ -368,7 +349,6 @@ class AccessibilityManager {
         const achievementsButton = document.getElementById('view-all-achievements');
         const achievementsModal = document.getElementById('achievements-modal');
         const closeAchievements = document.getElementById('close-achievements');
-        
         if (achievementsButton && achievementsModal) {
             achievementsButton.addEventListener('click', () => this.openModal(achievementsModal));
             closeAchievements.addEventListener('click', () => this.closeModal(achievementsModal));
@@ -392,7 +372,7 @@ class AccessibilityManager {
                     }
                 });
             });
-            
+
             observer.observe(activityFeed, { childList: true });
         }
     }
@@ -416,10 +396,9 @@ class AccessibilityManager {
             '#C0C0C0': 'silver',
             '#000080': 'navy'
         };
-        
         return colorNames[hex.toUpperCase()] || hex;
     }
-    
+
     // Update theme announcement
     updateThemeAnnouncement(theme) {
         const button = document.getElementById('theme-toggle');
@@ -433,27 +412,147 @@ class AccessibilityManager {
 window.AccessibilityManager = AccessibilityManager;
 
 
+// Extended accessibility features
 
+class AccessibilityEnhancements {
+    constructor() {
+        this.highContrastMode = false;
+        this.fontSize = 'normal';
+        this.keyboardShortcuts = new Map();
+        this.init();
+    }
+    
+    init() {
+        this.setupHighContrast();
+        this.setupFontSizeControls();
+        this.setupKeyboardShortcuts();
+        this.setupScreenReaderAnnouncements();
+    }
+    
+    setupHighContrast() {
+        // Check user preference
+        const savedPreference = localStorage.getItem('highContrastMode');
+        if (savedPreference === 'true') {
+            this.enableHighContrast();
+        }
+        
+        // Listen for system preference changes
+        if (window.matchMedia) {
+            const mediaQuery = window.matchMedia('(prefers-contrast: high)');
+            mediaQuery.addListener((e) => {
+                if (e.matches) {
+                    this.enableHighContrast();
+                }
+            });
+        }
+    }
+    
+    enableHighContrast() {
+        this.highContrastMode = true;
+        document.body.classList.add('high-contrast');
+        localStorage.setItem('highContrastMode', 'true');
+        this.announceToScreenReader('High contrast mode enabled');
+    }
+    
+    disableHighContrast() {
+        this.highContrastMode = false;
+        document.body.classList.remove('high-contrast');
+        localStorage.setItem('highContrastMode', 'false');
+        this.announceToScreenReader('High contrast mode disabled');
+    }
+    
+    setupFontSizeControls() {
+        const savedSize = localStorage.getItem('fontSize') || 'normal';
+        this.setFontSize(savedSize);
+    }
+    
+    setFontSize(size) {
+        const sizes = {
+            'small': '14px',
+            'normal': '16px',
+            'large': '18px',
+            'extra-large': '20px'
+        };
+        
+        if (sizes[size]) {
+            this.fontSize = size;
+            document.documentElement.style.fontSize = sizes[size];
+            localStorage.setItem('fontSize', size);
+        }
+    }
+    setupKeyboardShortcuts() {
+        // Define keyboard shortcuts
+        this.keyboardShortcuts.set('ctrl+alt+h', () => this.toggleHighContrast());
+        this.keyboardShortcuts.set('ctrl+alt++', () => this.increaseFontSize());
+        this.keyboardShortcuts.set('ctrl+alt+-', () => this.decreaseFontSize());
+        // Listen for keyboard events
+        document.addEventListener('keydown', (e) => {
+            const key = this.getKeyCombo(e);
+            const handler = this.keyboardShortcuts.get(key);
+            if (handler) {
+                e.preventDefault();
+                handler();
+            }
+        });
+    }
+    
+    getKeyCombo(event) {
+        const parts = [];
+        if (event.ctrlKey) parts.push('ctrl');
+        if (event.altKey) parts.push('alt');
+        if (event.shiftKey) parts.push('shift');
+        parts.push(event.key.toLowerCase());
+        return parts.join('+');
+    }
+    
+    toggleHighContrast() {
+        if (this.highContrastMode) {
+            this.disableHighContrast();
+        } else {
+            this.enableHighContrast();
+        }
+    }
+    
+    increaseFontSize() {
+        const sizes = ['small', 'normal', 'large', 'extra-large'];
+        const currentIndex = sizes.indexOf(this.fontSize);
+        if (currentIndex < sizes.length - 1) {
+            this.setFontSize(sizes[currentIndex + 1]);
+            this.announceToScreenReader(`Font size increased to ${sizes[currentIndex + 1]}`);
+        }
+    }
+    decreaseFontSize() {
+        const sizes = ['small', 'normal', 'large', 'extra-large'];
+        const currentIndex = sizes.indexOf(this.fontSize);
+        if (currentIndex > 0) {
+            this.setFontSize(sizes[currentIndex - 1]);
+            this.announceToScreenReader(`Font size decreased to ${sizes[currentIndex - 1]}`);
+        }
+    }
+    setupScreenReaderAnnouncements() {
+        // Create live region for screen reader announcements
+        const liveRegion = document.createElement('div');
+        liveRegion.setAttribute('role', 'status');
+        liveRegion.setAttribute('aria-live', 'polite');
+        liveRegion.setAttribute('aria-atomic', 'true');
+        liveRegion.className = 'sr-only';
+        liveRegion.id = 'accessibility-announcements';
+        document.body.appendChild(liveRegion);
+    }
+    announceToScreenReader(message) {
+        const liveRegion = document.getElementById('accessibility-announcements');
+        if (liveRegion) {
+            liveRegion.textContent = message;
+            // Clear after announcement
+            setTimeout(() => {
+                liveRegion.textContent = '';
+            }, 1000);
+        }
+    }
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Initialize accessibility enhancements
+const accessibilityEnhancements = new AccessibilityEnhancements();
 
 
 

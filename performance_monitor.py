@@ -21,7 +21,6 @@ class PerformanceMetric:
     timestamp: datetime
     success: bool
     metadata: Dict[str, Any] = None
-    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         data = asdict(self)
@@ -32,17 +31,17 @@ class PerformanceMonitor:
     """
     Comprehensive performance monitoring for all data operations
     """
-    
+
     def __init__(self, max_history: int = 10000):
         self.max_history = max_history
         self.metrics = defaultdict(lambda: deque(maxlen=max_history))
         self.counters = defaultdict(int)
         self.lock = threading.Lock()
-        
+
         # System resource monitoring
         self.system_metrics = deque(maxlen=1000)
         self._start_system_monitoring()
-        
+
         # Alert thresholds
         self.thresholds = {
             'cache_hit_rate': 0.8,  # Alert if hit rate < 80%
@@ -50,11 +49,11 @@ class PerformanceMonitor:
             'error_rate': 0.05,  # Alert if error rate > 5%
             'memory_usage_percent': 80,  # Alert if memory > 80%
         }
-        
+
         # Alert callbacks
         self.alert_callbacks = []
-    
-    def record_operation(self, operation: str, duration_ms: float, 
+
+    def record_operation(self, operation: str, duration_ms: float,
                         success: bool = True, metadata: Dict[str, Any] = None):
         """Record a single operation metric"""
         metric = PerformanceMetric(
@@ -64,7 +63,7 @@ class PerformanceMonitor:
             success=success,
             metadata=metadata or {}
         )
-        
+
         with self.lock:
             self.metrics[operation].append(metric)
             self.counters[f"{operation}_total"] += 1
@@ -83,7 +82,7 @@ class PerformanceMonitor:
             def __enter__(self):
                 self.start_time = time.time()
                 return self
-            
+
             def __exit__(self, exc_type, exc_val, exc_tb):
                 duration_ms = (time.time() - self.start_time) * 1000
                 success = exc_type is None
@@ -94,13 +93,13 @@ class PerformanceMonitor:
                     self.metadata
                 )
         return OperationTimer(self, operation)
-    
-    def get_operation_stats(self, operation: str, 
+
+    def get_operation_stats(self, operation: str,
                            time_window: Optional[timedelta] = None) -> Dict[str, Any]:
         """Get statistics for a specific operation"""
         with self.lock:
             metrics = list(self.metrics[operation])
-        
+
         if not metrics:
             return {
                 'operation': operation,
@@ -109,12 +108,12 @@ class PerformanceMonitor:
                 'avg_duration_ms': 0.0,
                 'percentiles': {}
             }
-        
+
         # Filter by time window if specified
         if time_window:
             cutoff = datetime.now() - time_window
             metrics = [m for m in metrics if m.timestamp > cutoff]
-        
+
         if not metrics:
             return {
                 'operation': operation,
@@ -123,11 +122,11 @@ class PerformanceMonitor:
                 'avg_duration_ms': 0.0,
                 'percentiles': {}
             }
-        
+
         # Calculate statistics
         durations = [m.duration_ms for m in metrics]
         success_count = sum(1 for m in metrics if m.success)
-        
+
         stats = {
             'operation': operation,
             'count': len(metrics),
@@ -150,10 +149,9 @@ class PerformanceMonitor:
         """Get statistics for all operations"""
         operations = list(self.metrics.keys())
         stats = {}
-        
         for operation in operations:
             stats[operation] = self.get_operation_stats(operation, time_window)
-        
+
         # Add system metrics
         stats['system'] = self.get_system_metrics()
         # Check for alerts
@@ -161,7 +159,7 @@ class PerformanceMonitor:
         if alerts:
             stats['alerts'] = alerts
         return stats
-    
+
     def _percentile(self, values: List[float], percentile: int) -> float:
         """Calculate percentile value"""
         if not values:
@@ -170,12 +168,12 @@ class PerformanceMonitor:
         index = (len(sorted_values) - 1) * percentile / 100
         lower = int(index)
         upper = lower + 1
-        
+
         if upper >= len(sorted_values):
             return sorted_values[lower]
         weight = index - lower
         return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
-    
+
     def _start_system_monitoring(self):
         """Start monitoring system resources"""
         def monitor_system():
@@ -194,15 +192,14 @@ class PerformanceMonitor:
                         'disk_percent': disk.percent,
                         'disk_free_gb': disk.free / 1024 / 1024 / 1024
                     }
-                    
+
                     with self.lock:
                         self.system_metrics.append(metric)
-                    
+
                     time.sleep(10)  # Monitor every 10 seconds
                 except Exception as e:
                     logger.error(f"System monitoring error: {e}")
                     time.sleep(60)  # Wait longer on error
-        
         thread = threading.Thread(target=monitor_system, daemon=True)
         thread.start()
     def get_system_metrics(self) -> Dict[str, Any]:
@@ -210,12 +207,11 @@ class PerformanceMonitor:
         with self.lock:
             if not self.system_metrics:
                 return {}
-            
             recent_metrics = list(self.system_metrics)[-10:]  # Last 10 samples
-        
+
         if not recent_metrics:
             return {}
-        
+
         # Calculate averages
         return {
             'current': recent_metrics[-1],
@@ -227,7 +223,7 @@ class PerformanceMonitor:
     def check_alerts(self, stats: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Check for performance alerts based on thresholds"""
         alerts = []
-        
+
         # Check cache hit rate
         cache_stats = stats.get('cache_get', {})
         if cache_stats and cache_stats.get('count', 0) > 100:  # Enough samples
@@ -240,7 +236,7 @@ class PerformanceMonitor:
                     'value': hit_rate,
                     'threshold': self.thresholds['cache_hit_rate']
                 })
-        
+
         # Check average response times
         for operation, op_stats in stats.items():
             if isinstance(op_stats, dict) and 'avg_duration_ms' in op_stats:
@@ -254,7 +250,6 @@ class PerformanceMonitor:
                         'value': avg_time,
                         'threshold': self.thresholds['avg_response_time_ms']
                     })
-        
         # Check system resources
         system_metrics = stats.get('system', {})
         current = system_metrics.get('current', {})
@@ -274,25 +269,25 @@ class PerformanceMonitor:
                 except Exception as e:
                     logger.error(f"Alert callback error: {e}")
         return alerts
-    
+
     def add_alert_callback(self, callback: Callable[[Dict[str, Any]], None]):
         """Add a callback to be notified of alerts"""
         self.alert_callbacks.append(callback)
     def export_metrics(self, filepath: str, time_window: Optional[timedelta] = None):
         """Export metrics to a JSON file"""
         stats = self.get_all_stats(time_window)
-        
+
         # Convert to serializable format
         export_data = {
             'timestamp': datetime.now().isoformat(),
             'time_window': str(time_window) if time_window else 'all',
             'stats': stats
         }
-        
+
         with open(filepath, 'w') as f:
             json.dump(export_data, f, indent=2)
         logger.info(f"Metrics exported to {filepath}")
-    
+
     def get_recommendations(self) -> List[Dict[str, Any]]:
         """Get performance optimization recommendations"""
         recommendations = []
@@ -308,7 +303,6 @@ class PerformanceMonitor:
                     'recommendation': 'Increase cache TTL or implement cache warming',
                     'reason': f'Low cache hit rate: {hit_rate:.2%}'
                 })
-        
         # Operation performance recommendations
         slow_operations = []
         for operation, op_stats in stats.items():
@@ -325,7 +319,7 @@ class PerformanceMonitor:
                     'recommendation': f'Optimize {operation} operation',
                     'reason': f'95th percentile response time: {p95:.1f}ms'
                 })
-        
+
         # Memory recommendations
         system_metrics = stats.get('system', {})
         if system_metrics:
@@ -358,48 +352,78 @@ def monitor_performance(operation_name: Optional[str] = None):
     return decorator
 
 
+# Additional performance monitoring utilities
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+class PerformanceAnalyzer:
+    """Advanced performance analysis tools"""
+    
+    def __init__(self):
+        self.analysis_cache = {}
+        self.trend_data = defaultdict(list)
+    
+    def analyze_trends(self, metric_name: str, window_size: int = 100):
+        """Analyze performance trends over time"""
+        if metric_name not in self.trend_data:
+            return None
+        
+        data = self.trend_data[metric_name]
+        if len(data) < window_size:
+            return None
+        
+        # Calculate moving average
+        recent_data = data[-window_size:]
+        avg = sum(recent_data) / len(recent_data)
+        
+        # Calculate trend direction
+        first_half = sum(recent_data[:window_size//2]) / (window_size//2)
+        second_half = sum(recent_data[window_size//2:]) / (window_size//2)
+        
+        trend = "improving" if second_half < first_half else "degrading"
+        
+        return {
+            'average': avg,
+            'trend': trend,
+            'change_percent': ((second_half - first_half) / first_half) * 100
+        }
+    
+    def get_bottlenecks(self):
+        """Identify performance bottlenecks"""
+        bottlenecks = []
+        
+        # Analyze each metric
+        for metric_name, values in self.trend_data.items():
+            if not values:
+                continue
+            
+            # Check if this metric is consistently high
+            avg = sum(values[-100:]) / min(100, len(values))
+            if avg > self.get_threshold(metric_name):
+                bottlenecks.append({
+                    'metric': metric_name,
+                    'average': avg,
+                    'severity': self.calculate_severity(avg, metric_name)
+                })
+        
+        return sorted(bottlenecks, key=lambda x: x['severity'], reverse=True)
+    
+    def get_threshold(self, metric_name: str) -> float:
+        """Get performance threshold for a metric"""
+        thresholds = {
+            'response_time': 1000,  # 1 second
+            'memory_usage': 500,    # 500 MB
+            'cpu_usage': 80,        # 80%
+            'cache_miss_rate': 0.3  # 30%
+        }
+        return thresholds.get(metric_name, float('inf'))
+    
+    def calculate_severity(self, value: float, metric_name: str) -> int:
+        """Calculate severity score (1-10)"""
+        threshold = self.get_threshold(metric_name)
+        if value <= threshold:
+            return 1
+        
+        # Calculate how much over threshold
+        over_threshold = value / threshold
+        severity = min(10, int(over_threshold * 5))
+        
+        return severity

@@ -7,45 +7,10 @@
     <title>Mural - Collaborative Pixel Art</title>
     <link rel="preconnect" href="https://cdn.tailwindcss.com">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <script src="{{ url_for('static', filename='js/debug.js') }}"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Theme configuration for Tailwind
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        // Custom theme colors
-                        light: {
-                            bg: '#f8fafc',
-                            surface: '#ffffff',
-                            border: '#e2e8f0',
-                            text: '#1e293b',
-                            muted: '#64748b'
-                        },
-                        dark: {
-                            bg: '#0f172a',
-                            surface: '#1e293b',
-                            border: '#334155',
-                            text: '#f1f5f9',
-                            muted: '#94a3b8'
-                        },
-                        coffee: {
-                            bg: '#2d1b14',
-                            surface: '#4a2c1a',
-                            card: '#f5efe7',
-                            border: '#6b3e26',
-                            text: '#f4e4d1',
-                            muted: '#d4b895',
-                            accent: '#8b4513',
-                            warm: '#cd853f'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" defer></script>
+    <script src="{{ url_for('static', filename='js/tailwind-config.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="bg-slate-50 dark:bg-gray-900 text-gray-900 dark:text-white min-h-screen transition-colors duration-300" data-theme="dark">
@@ -119,7 +84,13 @@
             <section class="xl:col-span-4" aria-labelledby="canvas-heading">
                 <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                     <div class="flex items-center justify-between mb-3">
-                        <h2 id="canvas-heading" class="text-xl font-semibold text-gray-900 dark:text-white">Canvas</h2>
+                        <div class="flex items-center space-x-2">
+                            <h2 id="canvas-heading" class="text-xl font-semibold text-gray-900 dark:text-white">Canvas</h2>
+                            <button id="help-button" 
+                                    aria-label="Help - How to use Mural" 
+                                    class="w-6 h-6 bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center justify-center focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    title="How to use Mural">?</button>
+                        </div>
                         <div class="flex items-center space-x-4">
                             <button id="zoom-out" 
                                     aria-label="Zoom out" 
@@ -421,6 +392,158 @@
         </div>
     </div>
     
+    <!-- Help Modal -->
+    <div id="help-modal" 
+         class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="help-modal-title"
+         aria-hidden="true">
+        <div class="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                    <h2 id="help-modal-title" class="text-2xl font-bold text-gray-900 dark:text-white">How to Use Mural</h2>
+                    <button id="close-help" 
+                            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none rounded"
+                            aria-label="Close help dialog">
+                        <span class="text-2xl" aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                <div class="space-y-6">
+                    <!-- Getting Started -->
+                    <section>
+                        <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">🎨 Getting Started</h3>
+                        <div class="space-y-2 text-gray-700 dark:text-gray-300">
+                            <p><strong>Welcome to Mural!</strong> This is a collaborative pixel art canvas where users from around the world can create art together in real-time.</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li>Each user can place one pixel at a time</li>
+                                <li>There's a cooldown period between pixel placements</li>
+                                <li>You earn Paint Buckets for each pixel placed</li>
+                                <li>Complete challenges and unlock achievements for bonus rewards!</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <!-- Canvas Controls -->
+                    <section>
+                        <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">🖱️ Canvas Controls</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <h4 class="font-semibold mb-2">Mouse Controls</h4>
+                                <ul class="space-y-1 text-gray-700 dark:text-gray-300">
+                                    <li><span class="font-medium">Click:</span> Place a pixel</li>
+                                    <li><span class="font-medium">Drag:</span> Pan around the canvas</li>
+                                    <li><span class="font-medium">Scroll:</span> Zoom in/out</li>
+                                    <li><span class="font-medium">Right-click:</span> Cancel placement</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold mb-2">Keyboard Shortcuts</h4>
+                                <ul class="space-y-1 text-gray-700 dark:text-gray-300">
+                                    <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm">Arrow Keys</kbd> Navigate canvas</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm">Enter/Space</kbd> Place pixel</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm">+/-</kbd> Zoom in/out</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm">C</kbd> Center view</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm">H</kbd> Show keyboard help</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Paint Buckets & Shop -->
+                    <section>
+                        <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">🪣 Paint Buckets & Shop</h3>
+                        <div class="space-y-2 text-gray-700 dark:text-gray-300">
+                            <p>Paint Buckets are the currency in Mural. You earn them by:</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li>Placing pixels (1 bucket per pixel, 2 with double rewards boost)</li>
+                                <li>Completing challenges (various rewards)</li>
+                                <li>Unlocking achievements (one-time bonuses)</li>
+                            </ul>
+                            <p class="mt-3"><strong>Spend them in the Shop on:</strong></p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong>Bigger Brushes:</strong> Place multiple pixels at once (3x3, 5x5, 7x7)</li>
+                                <li><strong>Cooldown Reduction:</strong> Place pixels faster</li>
+                                <li><strong>Special Colors:</strong> Unlock exclusive color palettes</li>
+                                <li><strong>Boosts:</strong> Temporary bonuses like double rewards</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <!-- Challenges -->
+                    <section>
+                        <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">🎯 Challenges</h3>
+                        <div class="space-y-2 text-gray-700 dark:text-gray-300">
+                            <p>Complete challenges to earn extra Paint Buckets! Challenge types include:</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong>Place Pixels:</strong> Place a certain number of pixels</li>
+                                <li><strong>Use Colors:</strong> Use specific colors or color variety</li>
+                                <li><strong>Create Patterns:</strong> Make lines, squares, or patterns</li>
+                                <li><strong>Collaborate:</strong> Place pixels near other users</li>
+                                <li><strong>Speed Challenges:</strong> Complete tasks within time limits</li>
+                            </ul>
+                            <p class="mt-2">Challenges refresh every 24 hours and scale with your progress!</p>
+                        </div>
+                    </section>
+
+                    <!-- Achievements -->
+                    <section>
+                        <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">🏆 Achievements</h3>
+                        <div class="space-y-2 text-gray-700 dark:text-gray-300">
+                            <p>Unlock permanent achievements for reaching milestones:</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong>Pixel Milestones:</strong> Place 10, 100, 1000+ pixels</li>
+                                <li><strong>Challenge Master:</strong> Complete many challenges</li>
+                                <li><strong>Time-based:</strong> Early Bird, Night Owl achievements</li>
+                                <li><strong>Special:</strong> Create patterns, maintain streaks, and more!</li>
+                            </ul>
+                            <p class="mt-2">Each achievement grants a one-time Paint Bucket bonus!</p>
+                        </div>
+                    </section>
+
+                    <!-- Tips & Tricks -->
+                    <section>
+                        <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">💡 Tips & Tricks</h3>
+                        <ul class="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
+                            <li>Use the mini-map (bottom-right of canvas) for quick navigation</li>
+                            <li>Press <kbd class="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm">1-9</kbd> to quickly select colors</li>
+                            <li>Complete daily challenges for consistent Paint Bucket income</li>
+                            <li>Save up for bigger brushes to create art faster</li>
+                            <li>Work together with others to create larger artworks</li>
+                            <li>Export your favorite canvas moments as PNG images</li>
+                            <li>Try different themes: Light, Dark, Coffee, and seasonal themes!</li>
+                        </ul>
+                    </section>
+
+                    <!-- Community Guidelines -->
+                    <section>
+                        <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">🤝 Community Guidelines</h3>
+                        <ul class="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
+                            <li>Be respectful and creative</li>
+                            <li>Collaborate, don't destroy others' work</li>
+                            <li>Create art that's appropriate for all ages</li>
+                            <li>Have fun and express yourself!</li>
+                        </ul>
+                    </section>
+
+                    <!-- Accessibility -->
+                    <section>
+                        <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">♿ Accessibility Features</h3>
+                        <ul class="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
+                            <li>Full keyboard navigation support</li>
+                            <li>Screen reader announcements for all actions</li>
+                            <li>High contrast themes available</li>
+                            <li>Reduced motion options in settings</li>
+                            <li>Skip navigation links for quick access</li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Achievement Notification -->
     <div id="achievement-notification" 
          class="fixed top-20 right-4 transform translate-x-full transition-transform duration-500 z-50"
@@ -442,6 +565,6 @@
     
     <script src="{{ url_for('static', filename='js/performance-monitor.js') }}"></script>
     <script src="{{ url_for('static', filename='js/accessibility.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/mural.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/mural.js') }}"></script>
 </body>
 </html>

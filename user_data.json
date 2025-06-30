@@ -57,5 +57,42 @@
       "streak_days": 1,
       "last_active_date": "2025-06-29"
     }
+  },
+  "64d023dd-0557-43de-98d2-8e6119322626": {
+    "paint_buckets": 276,
+    "total_pixels_placed": 6,
+    "challenges_completed": 2,
+    "achievements": [
+      "first_pixel",
+      "challenge_1"
+    ],
+    "active_challenges": [
+      "beginner_place_in_area_9340"
+    ],
+    "challenge_progress": {
+      "beginner_place_in_area_9340": 3
+    },
+    "challenge_details": {
+      "beginner_place_in_area_9340": {
+        "id": "beginner_place_in_area_9340",
+        "name": "Local Artist",
+        "description": "Place 5 pixels in a 10x10 area",
+        "requirement": 5,
+        "reward": 20,
+        "type": "place_in_area"
+      }
+    },
+    "purchases": {
+      "brush_size": 1,
+      "cooldown_reduction": 0,
+      "special_colors_unlocked": false
+    },
+    "statistics": {
+      "first_pixel_time": "2025-06-29T15:48:15.382821",
+      "last_pixel_time": "2025-06-29T16:11:16.320728",
+      "favorite_color": null,
+      "streak_days": 1,
+      "last_active_date": "2025-06-29"
+    }
   }
 }

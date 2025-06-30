@@ -12,18 +12,14 @@
                 new Date(2023, 11, 31), // Dec 31 - end of range
                 new Date(2024, 0, 1),   // Jan 1 - after range
             ];
-            
             console.log("Testing Christmas date detection:");
-            
             testDates.forEach(date => {
                 const month = date.getMonth() + 1;
                 const day = date.getDate();
                 const isInRange = month === 12 && day >= 20 && day <= 31;
-                
                 console.log(`${date.toDateString()}: ${isInRange ? 'CHRISTMAS THEME' : 'Regular theme'}`);
             });
         }
-        
         // Run test on page load
         window.onload = testChristmasDateRange;
     </script>
@@ -34,3 +30,40 @@
     <p>The Christmas theme should be active from December 20-31.</p>
 </body>
 </html>
+
+    <div id="test-results"></div>
+    <script>
+        // Additional test utilities
+        function runExtendedTests() {
+            const results = document.getElementById('test-results');
+            results.innerHTML = '<h2>Extended Test Results</h2>';
+            // Test theme detection for different years
+            const years = [2023, 2024, 2025];
+            years.forEach(year => {
+                const yearResults = document.createElement('div');
+                yearResults.innerHTML = `<h3>Year ${year}</h3>`;
+                for (let month = 11; month <= 12; month++) {
+                    for (let day = 15; day <= 31; day++) {
+                        const date = new Date(year, month - 1, day);
+                        const isChristmas = month === 12 && day >= 20 && day <= 31;
+                        const result = isChristmas ? '🎄 Christmas' : '📅 Regular';
+                        const dayResult = document.createElement('p');
+                        dayResult.textContent = `${date.toDateString()}: ${result}`;
+                        yearResults.appendChild(dayResult);
+                    }
+                }
+                results.appendChild(yearResults);
+            });
+        }
+        // Run extended tests
+        runExtendedTests();
+    </script>
+
+
+
+
+
+
+
+
+

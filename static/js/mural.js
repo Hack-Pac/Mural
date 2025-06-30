@@ -1108,14 +1108,15 @@ class Mural {
         
         if (resetViewBtn) {
             this.addEventListener(resetViewBtn, 'click', () => {
-            // Calculate the minimum zoom needed to fill the viewport
-            const zoomX = this.viewportWidth / this.originalWidth;
-            const zoomY = this.viewportHeight / this.originalHeight;
-            this.zoom = Math.max(zoomX, zoomY); // Ensure no out-of-bounds is visible
-            
-            this.centerCanvas();
-            this.updateZoomDisplay();
-        });
+                // Calculate the minimum zoom needed to fill the viewport
+                const zoomX = this.viewportWidth / this.originalWidth;
+                const zoomY = this.viewportHeight / this.originalHeight;
+                this.zoom = Math.max(zoomX, zoomY); // Ensure no out-of-bounds is visible
+                
+                this.centerCanvas();
+                this.updateZoomDisplay();
+            });
+        }
         
         // Export canvas as PNG
         const exportBtn = document.getElementById('export-canvas');
@@ -2188,6 +2189,18 @@ class Mural {
             this.addEventListener(closeAchievementsBtn, 'click', () => this.closeAchievements());
         }
         
+        // Help modal
+        const helpBtn = document.getElementById('help-button');
+        const closeHelpBtn = document.getElementById('close-help');
+        const helpModal = document.getElementById('help-modal');
+        
+        if (helpBtn) {
+            this.addEventListener(helpBtn, 'click', () => this.openHelp());
+        }
+        if (closeHelpBtn) {
+            this.addEventListener(closeHelpBtn, 'click', () => this.closeHelp());
+        }
+        
         // Close modals on background click
         if (shopModal) {
             this.addEventListener(shopModal, 'click', (e) => {
@@ -2197,6 +2210,11 @@ class Mural {
         if (achievementsModal) {
             this.addEventListener(achievementsModal, 'click', (e) => {
                 if (e.target.id === 'achievements-modal') this.closeAchievements();
+            });
+        }
+        if (helpModal) {
+            this.addEventListener(helpModal, 'click', (e) => {
+                if (e.target.id === 'help-modal') this.closeHelp();
             });
         }
         
@@ -2323,6 +2341,26 @@ class Mural {
         const modal = document.getElementById('achievements-modal');
         if (modal) {
             modal.classList.add('hidden');
+        }
+    }
+    
+    openHelp() {
+        const modal = document.getElementById('help-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+        
+        // Announce to screen readers
+        if (this.accessibility) {
+            this.accessibility.announce('Help dialog opened', 'polite');
+        }
+    }
+    
+    closeHelp() {
+        const modal = document.getElementById('help-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
         }
     }
     

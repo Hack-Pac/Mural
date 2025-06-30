@@ -14,19 +14,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 class DataMigration:
     """Handles migration from old to new data storage format"""
-    
+
     def __init__(self):
         self.backup_dir = Path('migration_backup')
         self.backup_dir.mkdir(exist_ok=True)
     def backup_existing_data(self):
         """Create backups of existing data files"""
         logger.info("Creating backups of existing data...")
-        
+
         files_to_backup = [
             'canvas_data.json',
             'user_data.json'
         ]
-        
+
         for filename in files_to_backup:
             if os.path.exists(filename):
                 backup_path = self.backup_dir / f"{filename}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -45,7 +45,7 @@ class DataMigration:
             logger.info(f"Loaded {len(canvas_data)} pixels from canvas_data.json")
             # Save to optimized storage with delta compression
             success = delta_storage.save_with_delta('canvas', canvas_data)
-            
+
             if success:
                 logger.info("Canvas data migrated to optimized storage")
                 # Warm up the cache
@@ -56,24 +56,23 @@ class DataMigration:
                 for pixel_key, pixel_data in canvas_data.items():
                     x, y = map(int, pixel_key.split(','))
                     canvas_manager.update_pixel(x, y, pixel_data)
-                
+
                 logger.info("Canvas data loaded into concurrent manager")
                 return True
             else:
                 logger.error("Failed to save canvas data to optimized storage")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Error migrating canvas data: {e}")
             return False
     def migrate_user_data(self):
         """Migrate user data to optimized format"""
         logger.info("Migrating user data...")
-        
+
         if not os.path.exists('user_data.json'):
             logger.warning("No user_data.json found")
             return False
-        
         try:
             # Load existing user data
             with open('user_data.json', 'r') as f:
@@ -81,12 +80,12 @@ class DataMigration:
             logger.info(f"Loaded data for {len(all_user_data)} users")
             # Initialize concurrent user manager
             user_manager = ConcurrentUserDataManager(storage)
-            
+
             # Migrate each user's data
             for user_id, user_data in all_user_data.items():
                 # Save to optimized storage
                 success = storage.save(f"user_{user_id}.dat", user_data)
-                
+
                 if success:
                     # Cache frequently accessed data
                     cache_key = f"user_progress:{user_id}"
@@ -130,17 +129,15 @@ class DataMigration:
             logger.info("✓ Canvas cache is working")
         else:
             logger.warning("⚠ Canvas cache is empty")
-        
+
         # Check user data files
         user_files = list(Path('data').glob('user_*.dat'))
         logger.info(f"✓ Found {len(user_files)} user data files")
-        
         # Test performance metrics
         from performance_monitor import performance_monitor
         metrics = performance_monitor.get_all_stats()
         logger.info("✓ Performance monitoring is active")
         return True
-    
     def create_indexes(self):
         """Create indexes for optimized lookups"""
         logger.info("Creating lookup indexes...")
@@ -154,7 +151,7 @@ class DataMigration:
                     if user_id not in user_pixel_index:
                         user_pixel_index[user_id] = []
                     user_pixel_index[user_id].append(pixel_key)
-            
+
             # Save index
             storage.save('user_pixel_index.dat', user_pixel_index)
             logger.info(f"Created user pixel index for {len(user_pixel_index)} users")
@@ -164,7 +161,7 @@ class DataMigration:
             for pixel_key, pixel_data in canvas_data.items():
                 x, y = map(int, pixel_key.split(','))
                 chunk_id = f"{x // 50}_{y // 50}"
-                
+
                 if chunk_id not in chunk_index:
                     chunk_index[chunk_id] = []
                 chunk_index[chunk_id].append(pixel_key)
@@ -201,56 +198,198 @@ def main():
         logger.error("❌ Migration verification failed")
         logger.info("Original files have been preserved. Check the logs for errors.")
         return False
-
 if __name__ == '__main__':
     main()
 
 
+class MigrationUtilities:
+    """Additional utilities for migration process"""
 
+    @staticmethod
+    def analyze_performance_baseline(app_path='app.py'):
+        """Analyze current app performance before migration"""
+        logger.info("Analyzing performance baseline...")
+        metrics = {
+            'response_times': [],
+            'memory_usage': [],
+            'cpu_usage': [],
+            'timestamp': datetime.now().isoformat()
+        }
 
+        try:
+            import psutil
+            import time
 
+            process = psutil.Process()
+            metrics['memory_usage'] = process.memory_info().rss / 1024 / 1024  # MB
+            metrics['cpu_usage'] = process.cpu_percent(interval=1)
 
+            # Save baseline metrics
+            with open('migration_baseline.json', 'w') as f:
+                json.dump(metrics, f, indent=2)
 
+            logger.info(f"Baseline metrics saved: Memory: {metrics['memory_usage']:.2f}MB, CPU: {metrics['cpu_usage']:.2f}%")
+            return metrics
+        except Exception as e:
+            logger.warning(f"Could not analyze baseline: {e}")
+            return None
 
+    @staticmethod
+    def validate_redis_connection():
+        """Validate Redis connection and configuration"""
+        try:
+            import redis
+            client = redis.StrictRedis(
+                host=os.getenv('REDIS_HOST', 'localhost'),
+                port=int(os.getenv('REDIS_PORT', 6379)),
+                db=0,
+                decode_responses=True
+            )
+            client.ping()
+            logger.info("✅ Redis connection validated")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Redis connection failed: {e}")
+            return False
 
+    @staticmethod
+    def create_migration_report(migration_status):
+        """Create detailed migration report"""
+        report = {
+            'timestamp': datetime.now().isoformat(),
+            'status': migration_status,
+            'environment': {
+                'python_version': sys.version,
+                'platform': sys.platform,
+                'redis_available': MigrationUtilities.validate_redis_connection()
+            },
+            'files_migrated': [],
+            'warnings': [],
+            'errors': []
+        }
 
+        # Save report
+        report_path = f'migration_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+        with open(report_path, 'w') as f:
+            json.dump(report, f, indent=2)
 
+        logger.info(f"Migration report saved to {report_path}")
+        return report_path
 
+    @staticmethod
+    def check_dependencies():
+        """Check if all required dependencies are installed"""
+        required_packages = [
+            'flask',
+            'redis',
+            'psutil',
+            'flask-cors',
+            'flask-limiter',
+            'python-dotenv'
+        ]
 
+        missing = []
+        for package in required_packages:
+            try:
+                __import__(package.replace('-', '_'))
+            except ImportError:
+                missing.append(package)
 
+        if missing:
+            logger.warning(f"Missing dependencies: {', '.join(missing)}")
+            logger.info("Install with: pip install " + ' '.join(missing))
+            return False
 
+        logger.info("✅ All dependencies are installed")
+        return True
 
+    @staticmethod
+    def cleanup_old_files(backup_dir):
+        """Clean up old backup files older than 30 days"""
+        try:
+            import glob
+            from datetime import timedelta
 
+            cutoff_date = datetime.now() - timedelta(days=30)
+            old_backups = []
 
+            for backup_path in glob.glob('backup_*'):
+                if os.path.isdir(backup_path):
+                    try:
+                        # Extract date from directory name
+                        date_str = backup_path.split('_')[1]
+                        backup_date = datetime.strptime(date_str, '%Y%m%d')
 
+                        if backup_date < cutoff_date:
+                            old_backups.append(backup_path)
+                    except:
+                        continue
 
+            if old_backups:
+                logger.info(f"Found {len(old_backups)} old backup(s) to clean up")
+                for old_backup in old_backups:
+                    try:
+                        shutil.rmtree(old_backup)
+                        logger.info(f"Removed old backup: {old_backup}")
+                    except Exception as e:
+                        logger.warning(f"Could not remove {old_backup}: {e}")
 
+            return len(old_backups)
+        except Exception as e:
+            logger.warning(f"Cleanup error: {e}")
+            return 0
 
+    @staticmethod
+    def generate_rollback_script(backup_dir):
+        """Generate a rollback script for emergency recovery"""
+        rollback_script = f"""#!/usr/bin/env python3
+# Auto-generated rollback script
+# Created: {datetime.now().isoformat()}
 
+import os
+import shutil
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+def rollback():
+    backup_dir = '{backup_dir}'
 
+    if not os.path.exists(backup_dir):
+        logger.error(f"Backup directory not found: {{backup_dir}}")
+        return False
 
+    # Restore files
+    files_to_restore = {os.listdir(backup_dir)}
 
+    for file in files_to_restore:
+        backup_path = os.path.join(backup_dir, file)
+        restore_path = file
 
+        try:
+            if os.path.exists(restore_path):
+                os.remove(restore_path)
+            shutil.copy2(backup_path, restore_path)
+            logger.info(f"Restored: {{file}}")
+        except Exception as e:
+            logger.error(f"Failed to restore {{file}}: {{e}}")
+            return False
 
+    logger.info("✅ Rollback completed successfully")
+    return True
 
+if __name__ == '__main__':
+    if input("Are you sure you want to rollback? (yes/no): ").lower() == 'yes':
+        rollback()
+    else:
+        print("Rollback cancelled")
+"""
 
+        script_path = f'rollback_{datetime.now().strftime("%Y%m%d_%H%M%S")}.py'
+        with open(script_path, 'w') as f:
+            f.write(rollback_script)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        os.chmod(script_path, 0o755)  # Make executable
+        logger.info(f"Rollback script generated: {script_path}")
+        return script_path

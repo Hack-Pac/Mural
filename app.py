@@ -25,15 +25,15 @@ app = Flask(__name__)
 config_name = os.environ.get('FLASK_ENV', 'development')
 app.config.from_object(config[config_name])
 
-socketio = SocketIO(app, 
+socketio = SocketIO(app,
                    cors_allowed_origins="*",
                    async_mode='threading',
-                   logger=True, 
+                   logger=True,
                    engineio_logger=True)
 
 canvas_data = {}
 user_cooldowns = {}
-connected_users = set() 
+connected_users = set()
 CANVAS_WIDTH = app.config['CANVAS_WIDTH']
 CANVAS_HEIGHT = app.config['CANVAS_HEIGHT']
 
@@ -60,12 +60,12 @@ def rate_limit(max_requests=60, window_seconds=60):
         def wrapped(*args, **kwargs):
             user_id = session.get('user_id', request.remote_addr)
             now = datetime.now()
-            
+
             # Clean old entries
             global rate_limit_data
-            rate_limit_data = {k: v for k, v in rate_limit_data.items() 
+            rate_limit_data = {k: v for k, v in rate_limit_data.items()
                              if (now - v['first_request']).seconds < window_seconds}
-            
+
             if user_id in rate_limit_data:
                 user_data = rate_limit_data[user_id]
                 if (now - user_data['first_request']).seconds < window_seconds:
@@ -76,7 +76,7 @@ def rate_limit(max_requests=60, window_seconds=60):
                     rate_limit_data[user_id] = {'first_request': now, 'count': 1}
             else:
                 rate_limit_data[user_id] = {'first_request': now, 'count': 1}
-            
+
             return f(*args, **kwargs)
         return wrapped
     return decorator
@@ -84,27 +84,27 @@ def rate_limit(max_requests=60, window_seconds=60):
 @app.after_request
 def add_security_headers(response):
     """Add security headers to all responses"""
-    # Content Security Policy
+    # Content Security Policy - temporarily more permissive for debugging
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
         "font-src 'self' data:; "
         "img-src 'self' data: blob:; "
-        "connect-src 'self' ws: wss:; "
+        "connect-src 'self' ws: wss: http: https:; "
         "frame-ancestors 'none';"
     )
-    
+
     # Other security headers
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    
+
     # HSTS for production
     if app.config.get('SESSION_COOKIE_SECURE'):
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    
+
     return response
 
 @app.route('/')
@@ -135,59 +135,59 @@ def get_canvas():
     try:
         # Check if client accepts gzip
         accept_encoding = request.headers.get('Accept-Encoding', '')
-        
+
         # Try to get from cache first
         try:
             cached_canvas = MuralCache.get_canvas_data()
             if cached_canvas is not None:
                 logger.info("Serving canvas from cache")
                 response = jsonify(cached_canvas)
-                
+
                 # Add compression if supported
                 if 'gzip' in accept_encoding and len(canvas_data) > 1000:
                     import gzip
                     import io
-                    
+
                     json_data = json.dumps(cached_canvas)
                     gzip_buffer = io.BytesIO()
                     with gzip.GzipFile(mode='wb', fileobj=gzip_buffer) as gzip_file:
                         gzip_file.write(json_data.encode('utf-8'))
-                    
+
                     response = app.response_class(
                         gzip_buffer.getvalue(),
                         mimetype='application/json',
                         headers={'Content-Encoding': 'gzip'}
                     )
-                
+
                 return response
         except Exception as e:
             logger.error(f"Error getting canvas from cache: {e}")
-        
+
         # Cache miss or error - return current data and try to cache it
         logger.info("Cache miss or error - serving live canvas data")
-        
+
         # Ensure canvas_data is not corrupted
         if not isinstance(canvas_data, dict):
             logger.error(f"Canvas data corrupted, type: {type(canvas_data)}")
             return jsonify({'error': 'Canvas data corrupted'}), 500
-        
+
         try:
             MuralCache.set_canvas_data(canvas_data, expire=app.config.get('CACHE_CANVAS_TTL', 60))
         except Exception as e:
             logger.error(f"There was an error caching canvas data: {e}")
-        
+
         return jsonify(canvas_data)
     except Exception as e:
         logger.error(f"Unexpected error in get_canvas: {e}")
         return jsonify({'error': 'Failed to retrieve canvas data'}), 500
 
 @app.route('/api/cooldown')
-def get_cooldown(): 
+def get_cooldown():
     """Get user's current cooldown status with caching"""
     user_id = session.get('user_id')
     if not user_id:
         return jsonify({'cooldown_remaining': 0})
-    
+
     # Check cache first
     try:
         cached_cooldown = MuralCache.get_cooldown(user_id)
@@ -197,7 +197,7 @@ def get_cooldown():
     except Exception as e:
         logger.error(f"Error checking cached cooldown for user {user_id}: {e}")
         # Continue with fallback check
-    
+
     # Fallback to in-memory storage
     if user_id in user_cooldowns:
         time_remaining = (user_cooldowns[user_id] - datetime.now()).total_seconds()
@@ -206,7 +206,7 @@ def get_cooldown():
             return jsonify({'cooldown_remaining': int(time_remaining)})
         else:
             del user_cooldowns[user_id]
-    
+
     return jsonify({'cooldown_remaining': 0})
 
 @app.route('/api/connected-count')
@@ -220,9 +220,9 @@ def get_user_progress():
     user_id = session.get('user_id')
     if not user_id:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     user_data = user_data_manager.get_user_data(user_id)
-    
+
     # Check for new achievements
     unlocked_achievements = challenge_manager.check_achievements(user_data)
     new_achievements = []
@@ -234,7 +234,7 @@ def get_user_progress():
                 'id': achievement_id,
                 **achievement_data
             })
-    
+
     # Get or generate active challenges
     if not user_data['active_challenges'] or len(user_data['active_challenges']) == 0:
         # Generate new challenges
@@ -244,7 +244,7 @@ def get_user_progress():
         )
         challenge_ids = [c.id for c in new_challenges]
         user_data_manager.set_active_challenges(user_id, challenge_ids)
-        
+
         # Store challenge details in user data for persistence
         if 'challenge_details' not in user_data:
             user_data['challenge_details'] = {}
@@ -254,7 +254,7 @@ def get_user_progress():
             # Also update the user data directly
             user_data_manager.user_data[user_id]['challenge_details'][challenge.id] = challenge_dict
         user_data_manager.save_data()
-        
+
         active_challenges = []
         for challenge in new_challenges:
             challenge_dict = challenge.to_dict()
@@ -265,7 +265,7 @@ def get_user_progress():
         active_challenges = []
         for challenge_id in user_data['active_challenges']:
             progress = user_data['challenge_progress'].get(challenge_id, 0)
-            
+
             # Get stored challenge details
             if 'challenge_details' in user_data and challenge_id in user_data['challenge_details']:
                 challenge_data = user_data['challenge_details'][challenge_id].copy()
@@ -275,7 +275,7 @@ def get_user_progress():
                 logger.warning(f"Challenge {challenge_id} missing details, regenerating...")
                 # Generate a single challenge as fallback
                 temp_challenges = challenge_manager.generate_challenges(
-                    user_data['challenges_completed'], 
+                    user_data['challenges_completed'],
                     [challenge_id]
                 )
                 if temp_challenges:
@@ -297,7 +297,7 @@ def get_user_progress():
                         'progress': progress
                     }
             active_challenges.append(challenge_data)
-    
+
     return jsonify({
         'paint_buckets': user_data['paint_buckets'],
         'total_pixels': user_data['total_pixels_placed'],
@@ -323,27 +323,27 @@ def get_user_stats():
         except Exception as e:
             logger.error(f"Error getting cached total pixels: {e}")
             total_pixels = len(canvas_data)
-        
+
         return jsonify({
             'user_pixels': 0,
             'total_pixels': total_pixels
         })
-    
+
     # Try to get user pixel count from cache
     try:
         user_pixels = MuralCache.get_user_pixel_count(user_id)
         if user_pixels is None:
             # Cache miss - calculate and cache
-            user_pixels = sum(1 for pixel_data in canvas_data.values() 
+            user_pixels = sum(1 for pixel_data in canvas_data.values()
                              if pixel_data.get('user_id') == user_id)
             MuralCache.set_user_pixel_count(user_id, user_pixels, app.config.get('CACHE_USER_STATS_TTL', 300))
             logger.info(f"Calculated and cached user pixels for {user_id}: {user_pixels}")
     except Exception as e:
         logger.error(f"Error getting cached user pixels for {user_id}: {e}")
         # Fallback to direct calculation
-        user_pixels = sum(1 for pixel_data in canvas_data.values() 
+        user_pixels = sum(1 for pixel_data in canvas_data.values()
                          if pixel_data.get('user_id') == user_id)
-    
+
     # Get cached total or calculate
     try:
         total_pixels = MuralCache.get_total_pixel_count()
@@ -353,7 +353,7 @@ def get_user_stats():
     except Exception as e:
         logger.error(f"Error getting cached total pixels: {e}")
         total_pixels = len(canvas_data)
-    
+
     return jsonify({
         'user_pixels': user_pixels,
         'total_pixels': total_pixels
@@ -365,10 +365,10 @@ def get_shop_items():
     user_id = session.get('user_id')
     if not user_id:
         return jsonify({'items': shop.get_available_items({})})
-    
+
     user_data = user_data_manager.get_user_data(user_id)
     available_items = shop.get_available_items(user_data['purchases'])
-    
+
     return jsonify({
         'items': available_items,
         'paint_buckets': user_data['paint_buckets']
@@ -380,30 +380,30 @@ def purchase_item():
     user_id = session.get('user_id')
     if not user_id:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     data = request.get_json()
     item_id = data.get('item_id')
-    
+
     if not item_id:
         return jsonify({'error': 'No item specified'}), 400
-    
+
     user_data = user_data_manager.get_user_data(user_id)
-    
+
     # Check if purchase is valid
     error = shop.purchase_item(item_id, user_data)
     if error:
         return jsonify({'error': error}), 400
-    
+
     # Deduct cost and apply purchase
     item = shop.items[item_id]
     if not user_data_manager.spend_paint_buckets(user_id, item.cost):
         return jsonify({'error': 'Insufficient paint buckets'}), 400
-    
+
     # Apply the purchase effects
     updated_data = shop.apply_purchase(item_id, user_data)
     user_data_manager.user_data[user_id] = updated_data
     user_data_manager.save_data()
-    
+
     return jsonify({
         'success': True,
         'paint_buckets': updated_data['paint_buckets'],
@@ -416,16 +416,16 @@ def complete_challenges():
     user_id = session.get('user_id')
     if not user_id:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     data = request.get_json()
     completed_ids = data.get('completed_challenge_ids', [])
-    
+
     if not completed_ids:
         return jsonify({'error': 'No challenges to complete'}), 400
-    
+
     user_data = user_data_manager.get_user_data(user_id)
     total_reward = 0
-    
+
     # Complete each challenge and award rewards
     for challenge_id in completed_ids:
         if challenge_id in user_data['active_challenges']:
@@ -433,15 +433,15 @@ def complete_challenges():
             challenge_reward = 50  # Default
             if 'challenge_details' in user_data and challenge_id in user_data['challenge_details']:
                 challenge_reward = user_data['challenge_details'][challenge_id].get('reward', 50)
-            
+
             # Award paint buckets
             total_reward += challenge_reward
             user_data_manager.complete_challenge(user_id, challenge_id)
-    
+
     # Add total rewards
     if total_reward > 0:
         user_data_manager.add_paint_buckets(user_id, total_reward)
-    
+
     # Generate new challenges if all are completed
     user_data = user_data_manager.get_user_data(user_id)
     if len(user_data['active_challenges']) == 0:
@@ -450,7 +450,7 @@ def complete_challenges():
         )
         challenge_ids = [c.id for c in new_challenges]
         user_data_manager.set_active_challenges(user_id, challenge_ids)
-        
+
         # Store new challenge details
         if 'challenge_details' not in user_data:
             user_data['challenge_details'] = {}
@@ -460,7 +460,7 @@ def complete_challenges():
             # Also update the user data directly
             user_data_manager.user_data[user_id]['challenge_details'][challenge.id] = challenge_dict
         user_data_manager.save_data()
-        
+
         # Return full challenge details with initial progress
         active_challenges = []
         for challenge in new_challenges:
@@ -475,7 +475,7 @@ def complete_challenges():
                 challenge_data = user_data['challenge_details'][challenge_id].copy()
                 challenge_data['progress'] = user_data['challenge_progress'].get(challenge_id, 0)
                 active_challenges.append(challenge_data)
-    
+
     return jsonify({
         'success': True,
         'total_reward': total_reward,
@@ -491,34 +491,34 @@ def place_pixel():
     data = request.get_json()
     if not data:
         return jsonify({'error': 'No data provided'}), 400
-    
+
     x = data.get('x')
     y = data.get('y')
     color = data.get('color')
-    
+
     # Validate all fields are present
     if not all([x is not None, y is not None, color]):
         return jsonify({'error': 'Missing required fields'}), 400
-    
+
     # Validate coordinate types
     if not isinstance(x, int) or not isinstance(y, int):
         return jsonify({'error': 'Coordinates must be integers'}), 400
-    
+
     # Validate coordinate bounds
     if not (0 <= x < CANVAS_WIDTH and 0 <= y < CANVAS_HEIGHT):
         return jsonify({'error': 'Coordinates out of bounds'}), 400
-    
+
     # Validate color format
     import re
     if not isinstance(color, str) or not re.match(r'^#[0-9A-Fa-f]{6}$', color):
         return jsonify({'error': 'Invalid color format. Must be hex color (#RRGGBB)'}), 400
-    
+
     # Get or create user ID
     user_id = session.get('user_id')
     if not user_id:
         user_id = str(uuid.uuid4())
         session['user_id'] = user_id
-    
+
     # Check cooldown using cache first
     try:
         cached_cooldown = MuralCache.get_cooldown(user_id)
@@ -531,7 +531,7 @@ def place_pixel():
     except Exception as e:
         logger.error(f"Error checking cached cooldown for user {user_id}: {e}")
         # Continue with fallback cooldown check
-    
+
     # Fallback to in-memory cooldown check
     if user_id in user_cooldowns:
         time_remaining = (user_cooldowns[user_id] - datetime.now()).total_seconds()
@@ -540,37 +540,37 @@ def place_pixel():
                 'error': 'Cooldown active',
                 'cooldown_remaining': int(time_remaining)
             }), 429  # Too Many Requests
-    
+
     pixel_key = f"{x},{y}"
-    
+
     # Check if pixel already exists (for accurate counting)
     pixel_existed = pixel_key in canvas_data
     old_user_id = canvas_data.get(pixel_key, {}).get('user_id') if pixel_existed else None
-    
+
     canvas_data[pixel_key] = {
         'color': color,
         'timestamp': datetime.now().isoformat(),
         'user_id': user_id
     }
-    
+
     # Get user data for upgrades
     user_data = user_data_manager.get_user_data(user_id)
-    
+
     # Apply cooldown reduction from upgrades
     base_cooldown = PIXEL_COOLDOWN
     cooldown_reduction = user_data['purchases'].get('cooldown_reduction', 0)
     actual_cooldown = int(base_cooldown * (1 - cooldown_reduction / 100))
-    
+
     # Update cooldowns
     logger.info(f"Setting cooldown for user {user_id} to {actual_cooldown} seconds (base: {base_cooldown}, reduction: {cooldown_reduction}%)")
     cooldown_time = datetime.now() + timedelta(seconds=actual_cooldown)
     user_cooldowns[user_id] = cooldown_time
-    
+
     try:
         MuralCache.set_cooldown(user_id, cooldown_time)
     except Exception as e:
         logger.error(f"Error setting cooldown cache for user {user_id}: {e}")
-    
+
     # Update cached counters intelligently
     try:
         if not pixel_existed:
@@ -585,41 +585,52 @@ def place_pixel():
         # If same user replaced their own pixel, counters stay the same
     except Exception as e:
         logger.error(f"Error updating cached counters: {e}")
-    
+
     # Invalidate canvas cache since it changed
     try:
         MuralCache.invalidate_canvas()
     except Exception as e:
         logger.error(f"Error invalidating canvas cache: {e}")
-    
+
     # Save canvas data to file for persistence
     save_canvas_to_file()
-    
+
     # Update user progress
     user_data_manager.increment_pixels_placed(user_id)
-    
+
     # Award paint buckets for placing pixels (base reward)
     base_reward = 1
-    
+
     # Check for active double rewards boost
     active_boosts = user_data.get('active_boosts', {})
     if 'double_rewards' in active_boosts:
         expires = datetime.fromisoformat(active_boosts['double_rewards']['expires'])
         if expires > datetime.now():
             base_reward *= 2
-    
+
     paint_buckets_earned = user_data_manager.add_paint_buckets(user_id, base_reward)
-    
+
     # Check challenge progress
-    # This is simplified - in production you'd have more sophisticated challenge tracking
+    # Update progress for all challenges that involve placing pixels
     for challenge_id in user_data['active_challenges']:
-        if 'place_pixels' in challenge_id:
+        # Get challenge details to check the type
+        challenge_details = user_data.get('challenge_details', {}).get(challenge_id, {})
+        challenge_type = challenge_details.get('type', '')
+
+        # Check if this challenge type involves placing pixels
+        pixel_related_types = ['place_pixels', 'use_color', 'place_in_area', 'daily_pixel',
+                               'create_line', 'fill_area', 'use_colors', 'collaborate',
+                               'create_pattern', 'pixel_art', 'defend_pixels', 'marathon',
+                               'create_art', 'community', 'speed_paint', 'precision']
+
+        if challenge_type in pixel_related_types:
             current_progress = user_data['challenge_progress'].get(challenge_id, 0) + 1
             user_data_manager.update_challenge_progress(user_id, challenge_id, current_progress)
-    
+            logger.info(f"Updated challenge {challenge_id} progress to {current_progress} for user {user_id}")
+
     # Hash user ID for privacy in broadcasts
     hashed_user_id = hashlib.sha256(user_id.encode()).hexdigest()[:8]
-    
+
     # Add to batch queue instead of immediate emit
     pixel_update = {
         'x': x,
@@ -627,10 +638,10 @@ def place_pixel():
         'color': color,
         'user_id': hashed_user_id  # Send hashed ID for privacy
     }
-    
+
     # Use batching for better performance
     batch_pixel_update(pixel_update)
-    
+
     return jsonify({
         'success': True,
         'cooldown_remaining': actual_cooldown,
@@ -645,15 +656,15 @@ def handle_connect():
         if 'user_id' not in session:
             logger.warning(f"WebSocket connection attempt without valid session from {request.remote_addr}")
             return False  # Reject connection
-        
+
         # Validate request.sid
         if not request.sid:
             logger.error("No socket ID provided")
             return False
-        
+
         print('Client connected')
         connected_users.add(request.sid)
-        
+
         # Send canvas data with rate limiting
         if len(canvas_data) > 10000:  # Large canvas
             # Send a message to fetch via API instead
@@ -662,7 +673,7 @@ def handle_connect():
             # Send a sanitized copy of canvas data
             safe_canvas = {k: v for k, v in canvas_data.items() if isinstance(v, dict) and 'color' in v}
             emit('canvas_update', safe_canvas)
-        
+
         # Emit the updated user count to all connected clients
         socketio.emit('user_count', {'count': len(connected_users)})
         logger.info(f"User {session['user_id']} connected. Total users: {len(connected_users)}")
@@ -685,15 +696,15 @@ def handle_disconnect():
 def batch_pixel_update(pixel_update):
     """Batch pixel updates for efficient WebSocket transmission"""
     global pixel_update_queue, pixel_batch_timer
-    
+
     try:
         # Validate pixel update
         if not isinstance(pixel_update, dict) or 'x' not in pixel_update or 'y' not in pixel_update:
             logger.warning(f"Invalid pixel update: {pixel_update}")
             return
-        
+
         pixel_update_queue.append(pixel_update)
-        
+
         # If queue is full, send immediately
         if len(pixel_update_queue) >= PIXEL_BATCH_SIZE:
             flush_pixel_batch()
@@ -708,25 +719,25 @@ def batch_pixel_update(pixel_update):
 def flush_pixel_batch():
     """Send batched pixel updates"""
     global pixel_update_queue, pixel_batch_timer
-    
+
     try:
         if pixel_batch_timer:
             pixel_batch_timer.cancel()
             pixel_batch_timer = None
-        
+
         if not pixel_update_queue:
             return
-        
+
         # Create a copy to avoid race conditions
         updates_to_send = pixel_update_queue[:]
         pixel_update_queue = []
-        
+
         # Send as batch if multiple updates, otherwise single
         if len(updates_to_send) > 1:
             socketio.emit('pixel_batch', updates_to_send)
         else:
             socketio.emit('pixel_placed', updates_to_send[0])
-            
+
     except Exception as e:
         logger.error(f"Error in flush_pixel_batch: {e}")
         # Clear the queue to prevent memory issues
@@ -735,14 +746,14 @@ def flush_pixel_batch():
 def cleanup_cooldowns():
     """Remove expired cooldowns to prevent memory leaks"""
     current_time = datetime.now()
-    expired_users = [user_id for user_id, cooldown_time in user_cooldowns.items() 
+    expired_users = [user_id for user_id, cooldown_time in user_cooldowns.items()
                     if cooldown_time <= current_time]
     for user_id in expired_users:
         del user_cooldowns[user_id]
-    
+
     # Clean up cache expired entries if using fallback
     cache.cleanup_expired()
-    
+
     if expired_users:
         logger.info(f"Cleaned up {len(expired_users)} expired cooldowns")
 
@@ -751,7 +762,7 @@ def setup_periodic_cleanup():
     """Setup periodic cleanup of expired data"""
     import threading
     import time
-    
+
     def cleanup_worker():
         while True:
             time.sleep(300)  # Run every 5 minutes
@@ -761,7 +772,7 @@ def setup_periodic_cleanup():
                 save_canvas_to_file()
             except Exception as e:
                 logger.error(f"Error in cleanup worker: {e}")
-    
+
     cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
     cleanup_thread.start()
     logger.info("Started periodic cleanup worker")
@@ -769,7 +780,7 @@ def setup_periodic_cleanup():
 def generate_initial_pixel_art():
     """Generate some initial pixel art with holes for users to fill in"""
     designs = []
-    
+
     # Design 1: Smiley face with missing features (centered around 100, 100)
     smiley = [
         # Face outline (circle)
@@ -808,7 +819,7 @@ def generate_initial_pixel_art():
         (96, 105), (97, 105), (103, 105), (104, 105),
     ]
     designs.append(('smiley', smiley, '#FFD700'))  # Gold color
-    
+
     # Design 2: Heart with missing center (around 250, 150)
     heart = [
         # Left heart bump
@@ -831,7 +842,7 @@ def generate_initial_pixel_art():
         (249, 155),
     ]
     designs.append(('heart', heart, '#FF69B4'))  # Hot pink
-    
+
     # Design 3: Simple house with missing windows and door (around 150, 300)
     house = [
         # Roof
@@ -868,7 +879,7 @@ def generate_initial_pixel_art():
         (154, 305), (156, 305),
     ]
     designs.append(('house', house, '#8B4513'))  # Saddle brown
-    
+
     # Design 4: Flower with missing petals (around 350, 200)
     flower = [
         # Flower center
@@ -887,7 +898,7 @@ def generate_initial_pixel_art():
         (351, 206), (352, 207),  # Right leaf (partial)
     ]
     designs.append(('flower', flower, '#32CD32'))  # Lime green
-    
+
     # Design 5: Star with missing points (around 400, 100)
     star = [
         # Star center
@@ -902,7 +913,7 @@ def generate_initial_pixel_art():
         (401, 104), (402, 105),  # Bottom right point (partial)
     ]
     designs.append(('star', star, '#FFD700'))  # Gold
-    
+
     return designs
 
 def populate_canvas_with_initial_art():
@@ -910,10 +921,10 @@ def populate_canvas_with_initial_art():
     if canvas_data:  # Don't overwrite if canvas already has data
         logger.info("Canvas already has data, skipping initial art generation")
         return
-    
+
     designs = generate_initial_pixel_art()
     pixels_added = 0
-    
+
     for design_name, coordinates, color in designs:
         for x, y in coordinates:
             # Make sure coordinates are within bounds
@@ -925,12 +936,12 @@ def populate_canvas_with_initial_art():
                     'user_id': 'system'  # Mark as system-generated
                 }
                 pixels_added += 1
-    
+
     logger.info(f"Generated initial pixel art: {pixels_added} pixels across {len(designs)} designs")
-    
+
     # Save the initial art to file for persistence
     save_canvas_to_file()
-    
+
     # Update cache with the new data
     try:
         MuralCache.set_canvas_data(canvas_data)
@@ -948,7 +959,7 @@ def save_canvas_to_file():
         temp_file = f"{CANVAS_DATA_FILE}.tmp"
         with open(temp_file, 'w') as f:
             json.dump(canvas_data, f, indent=2)
-        
+
         # Atomic rename
         os.replace(temp_file, CANVAS_DATA_FILE)
         logger.info(f"Canvas data saved to {CANVAS_DATA_FILE}")
@@ -968,13 +979,13 @@ def load_canvas_from_file():
         if os.path.exists(CANVAS_DATA_FILE):
             with open(CANVAS_DATA_FILE, 'r') as f:
                 loaded_data = json.load(f)
-            
+
             # Validate loaded data
             if not isinstance(loaded_data, dict):
                 logger.error(f"Invalid canvas data format in file: {type(loaded_data)}")
                 canvas_data = {}
                 return
-            
+
             # Validate each pixel entry
             valid_pixels = 0
             for key, value in loaded_data.items():
@@ -993,7 +1004,7 @@ def load_canvas_from_file():
                 else:
                     logger.warning(f"Invalid pixel data for key {key}: {value}")
                     del loaded_data[key]
-            
+
             canvas_data = loaded_data
             logger.info(f"Canvas data loaded from {CANVAS_DATA_FILE} - {valid_pixels} valid pixels")
         else:
@@ -1008,26 +1019,26 @@ def load_canvas_from_file():
 if __name__ == '__main__':
     config_name = os.environ.get('FLASK_ENV', 'development')
     config_obj = config[config_name]
-    
+
     # Start periodic cleanup
     setup_periodic_cleanup()
-    
+
     # Load existing canvas data from file first
     load_canvas_from_file()
-    
+
     # Initialize cache with canvas data if it exists
     if canvas_data:
         MuralCache.set_canvas_data(canvas_data)
         MuralCache.set_total_pixel_count(len(canvas_data))
         logger.info("Initialized cache with existing canvas data")
-    
+
     # Only populate with initial art if canvas is empty
     if not canvas_data:
         populate_canvas_with_initial_art()
         logger.info("Populated empty canvas with initial pixel art")
-    
-    socketio.run(app, 
-                debug=config_obj.DEBUG, 
-                host=config_obj.HOST, 
+
+    socketio.run(app,
+                debug=config_obj.DEBUG,
+                host=config_obj.HOST,
                 port=config_obj.PORT,
                 allow_unsafe_werkzeug=True)

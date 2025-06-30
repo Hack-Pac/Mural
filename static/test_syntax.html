@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Syntax Test</title>
+</head>
+<body>
+    <h1>Testing for syntax errors</h1>
+    <canvas id="canvas"></canvas>
+    
+    <script>
+        console.log("Test 1: Basic syntax check passed");
+        
+        // Test object creation
+        const testObj = {
+            key: "value"
+        };
+        console.log("Test 2: Object creation passed");
+        
+        // Test function
+        function testFunction() {
+            return { status: "ok" };
+        }
+        console.log("Test 3: Function declaration passed");
+        
+        // Test class
+        class TestClass {
+            constructor() {
+                this.value = "test";
+            }
+        }
+        console.log("Test 4: Class declaration passed");
+        
+        // Test fetch
+        fetch('/api/canvas')
+            .then(response => response.json())
+            .then(data => {
+                console.log("Test 5: Fetch successful, data keys:", Object.keys(data).length);
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+            });
+    </script>
+</body>
+</html>

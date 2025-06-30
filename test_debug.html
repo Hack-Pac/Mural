@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Test</title>
+</head>
+<body>
+    <h1>Debug Test</h1>
+    <div id="canvas-container">
+        <canvas id="canvas" width="500" height="500"></canvas>
+    </div>
+    
+    <script>
+        console.log("Starting debug test...");
+        
+        // Test basic canvas functionality
+        const canvas = document.getElementById('canvas');
+        console.log("Canvas element:", canvas);
+        
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            console.log("Canvas context:", ctx);
+            
+            // Draw a test rectangle
+            ctx.fillStyle = 'red';
+            ctx.fillRect(10, 10, 50, 50);
+        }
+        
+        // Test fetch
+        console.log("Testing fetch...");
+        fetch('/api/canvas')
+            .then(response => {
+                console.log("Response status:", response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log("Canvas data received:", Object.keys(data).length, "pixels");
+                console.log("Sample data:", Object.entries(data).slice(0, 5));
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+            });
+    </script>
+</body>
+</html>
