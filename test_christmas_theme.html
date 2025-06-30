@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Christmas Theme Test</title>
+    <script>
+        // Test script to simulate different dates
+        function testChristmasDateRange() {
+            const testDates = [
+                new Date(2023, 11, 19), // Dec 19 - before range
+                new Date(2023, 11, 20), // Dec 20 - start of range
+                new Date(2023, 11, 25), // Dec 25 - Christmas day
+                new Date(2023, 11, 31), // Dec 31 - end of range
+                new Date(2024, 0, 1),   // Jan 1 - after range
+            ];
+            
+            console.log("Testing Christmas date detection:");
+            
+            testDates.forEach(date => {
+                const month = date.getMonth() + 1;
+                const day = date.getDate();
+                const isInRange = month === 12 && day >= 20 && day <= 31;
+                
+                console.log(`${date.toDateString()}: ${isInRange ? 'CHRISTMAS THEME' : 'Regular theme'}`);
+            });
+        }
+        
+        // Run test on page load
+        window.onload = testChristmasDateRange;
+    </script>
+</head>
+<body>
+    <h1>Christmas Theme Date Range Test</h1>
+    <p>Check the console for test results.</p>
+    <p>The Christmas theme should be active from December 20-31.</p>
+</body>
+</html>
