@@ -108,7 +108,7 @@ class CacheService:
             
             if expired_keys:
                 logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")
-
+                
 # Global cache instance
 cache = CacheService()
 
